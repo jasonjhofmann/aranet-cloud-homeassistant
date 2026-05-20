@@ -1,0 +1,35 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Aranet Cloud",
+        "description": "Enter your Aranet Cloud API key. You can generate one from your Aranet Cloud dashboard under Account → API.",
+        "data": {
+          "api_key": "API key"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate Aranet Cloud",
+        "description": "The Aranet Cloud rejected the saved API key. Generate a new one and paste it below.",
+        "data": {
+          "api_key": "API key"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "The API key was rejected by Aranet Cloud. Double-check that you copied the full key and that it hasn't been revoked.",
+      "cannot_connect": "Could not reach Aranet Cloud. Check your internet connection, then try again."
+    },
+    "abort": {
+      "already_configured": "This Aranet Cloud account is already configured.",
+      "reauth_successful": "Re-authentication was successful."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "co2": {
+        "name": "CO₂"
+      }
+    }
+  }
+}

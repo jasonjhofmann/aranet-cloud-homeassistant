@@ -1,0 +1,13 @@
+{
+  "domain": "aranet_cloud",
+  "name": "Aranet Cloud",
+  "codeowners": ["@jasonjhofmann"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/jasonjhofmann/aranet-cloud-homeassistant",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/jasonjhofmann/aranet-cloud-homeassistant/issues",
+  "requirements": ["aranet-cloud==0.1.0"],
+  "version": "0.1.0"
+}
