@@ -25,11 +25,36 @@
       "reauth_successful": "Re-authentication was successful."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Aranet Cloud options",
+        "description": "Adjust polling cadence. Aranet sensors push roughly once a minute, so values much lower than 60 seconds rarely return new data.",
+        "data": {
+          "scan_interval": "Polling interval (seconds)"
+        }
+      }
+    }
+  },
   "entity": {
     "sensor": {
-      "co2": {
-        "name": "CO₂"
-      }
+      "temperature": { "name": "Temperature" },
+      "humidity": { "name": "Humidity" },
+      "co2": { "name": "CO₂" },
+      "atmospheric_pressure": { "name": "Atmospheric pressure" },
+      "soil_moisture": { "name": "Soil moisture" },
+      "soil_permittivity": { "name": "Soil permittivity" },
+      "soil_ec": { "name": "Soil EC" },
+      "pore_ec": { "name": "Pore EC" },
+      "vapour_pressure_deficit": { "name": "Vapour-pressure deficit" },
+      "day_light_integral": { "name": "Day light integral" },
+      "rssi": { "name": "Signal strength" },
+      "battery": { "name": "Battery" },
+      "base_firmware": { "name": "Firmware" }
+    },
+    "binary_sensor": {
+      "low_battery": { "name": "Low battery" },
+      "base_offline": { "name": "Base station" }
     }
   }
 }
