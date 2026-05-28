@@ -6,7 +6,45 @@ versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Reserved for changes after v0.3.0. No items yet.
+Nothing yet.
+
+## [0.4.0] — 2026-05-27
+
+### Removed (breaking)
+
+- **OptionsFlow** and user-configurable poll interval. HA Core convention
+  is that the integration owns its cadence; we now poll at a fixed 60 s
+  (matching Aranet sensors' 60 s sample rate, which was the previous
+  default). Old config entries with a saved `options.scan_interval` are
+  tolerated — the value is simply ignored. `CONF_SCAN_INTERVAL`,
+  `MIN_SCAN_INTERVAL_SECONDS`, and `MAX_SCAN_INTERVAL_SECONDS` dropped
+  from `const.py`.
+
+### Added
+
+- **`quality_scale.yaml`** (Bronze tier) with Silver-tier rule status
+  pre-mapped (done / todo / exempt).
+- **`"quality_scale": "bronze"`** in `manifest.json`.
+- **PEP-561 `py.typed`** marker so downstream type-checkers honour the
+  integration's type hints.
+- **`.github/copilot-instructions.md`** — HA Core integration conventions
+  adapted for custom integrations, so AI assistants editing this repo
+  produce idiomatic HA-style code.
+
+### Changed
+
+- HACS `homeassistant` floor bumped `2024.12.0` → `2025.1.0`.
+- `AranetCoordinator.__init__` now takes the `ConfigEntry` directly and
+  passes it to `super().__init__(config_entry=entry)` per the HA 2024.10+
+  pattern (so HA can attribute coordinator errors).
+- `_async_options_updated` listener removed (no options to react to).
+- README updated to reflect the fixed cadence.
+
+### Notes
+
+Closes Bronze quality-scale blockers for HA Core acceptance. Remaining
+gaps (deferred): no tests, no CI workflows, no `pyproject.toml`,
+`async_step_reconfigure` not implemented (Silver-tier).
 
 ## [0.3.0] — 2026-05-19
 
@@ -78,6 +116,7 @@ state.
 - Aranet brand assets bundled in `brand/` (Phase 3 work, backported to
   the 0.1.x lineage for context).
 
-[Unreleased]: https://github.com/jasonjhofmann/aranet-cloud-homeassistant/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/jasonjhofmann/aranet-cloud-homeassistant/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/jasonjhofmann/aranet-cloud-homeassistant/releases/tag/v0.4.0
 [0.3.0]: https://github.com/jasonjhofmann/aranet-cloud-homeassistant/releases/tag/v0.3.0
 [0.1.0]: https://github.com/jasonjhofmann/aranet-cloud-homeassistant/releases/tag/v0.1.0
