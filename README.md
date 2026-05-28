@@ -1,7 +1,7 @@
 # Aranet Cloud — Home Assistant integration
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
-![version](https://img.shields.io/badge/version-0.3.0-blue.svg)
+[![release](https://img.shields.io/github/v/release/jasonjhofmann/aranet-cloud-homeassistant?label=release&color=blue)](https://github.com/jasonjhofmann/aranet-cloud-homeassistant/releases)
 
 Read all your [Aranet Cloud](https://aranet.cloud/) sensors into Home
 Assistant via the official REST API. Works alongside (or instead of) the
