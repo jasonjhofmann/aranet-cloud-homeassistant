@@ -13,15 +13,15 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from aranet_cloud import AranetAuthError, AranetCloudClient, AranetError
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DOMAIN
+from .const import DEFAULT_SCAN_INTERVAL, DOMAIN
 
 if TYPE_CHECKING:
     from aranet_cloud import Alarm, Base, Links, Reading, Sensor
@@ -78,15 +78,16 @@ class AranetCoordinator(DataUpdateCoordinator[AranetSnapshot]):
     def __init__(
         self,
         hass: HomeAssistant,
+        entry: ConfigEntry,
         *,
         client: AranetCloudClient,
-        scan_interval: timedelta,
     ) -> None:
         super().__init__(
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=scan_interval,
+            update_interval=DEFAULT_SCAN_INTERVAL,
+            config_entry=entry,
         )
         self._client = client
 

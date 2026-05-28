@@ -26,7 +26,9 @@ that aren't in BLE range of your HA host.
 - **Unit preservation** — values arrive in whatever units your Aranet
   account is configured to display (°F vs °C, mmHg vs hPa, etc.). Home
   Assistant's built-in conversions still work if you prefer something else.
-- **Options flow** for tuning the poll cadence (30–600 s, default 60 s).
+- **Fixed 60-second poll cadence**, matching Aranet sensors' 60 s sample
+  rate. Not user-configurable per HA Core conventions — the integration
+  owns its cadence.
 - **Reauth flow** on revoked or rotated API keys.
 - **Diagnostics download** with the API key automatically redacted —
   paste into a GitHub issue if something looks off.

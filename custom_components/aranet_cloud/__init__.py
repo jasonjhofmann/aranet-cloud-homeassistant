@@ -4,19 +4,21 @@ Per HA's modern pattern:
 
 * :func:`async_setup_entry` is called once per config entry. It instantiates
   the :class:`AranetCloudClient` (reusing HA's shared aiohttp session),
-  reads the scan-interval option (defaulting to 60 s), spins up the
-  coordinator, awaits the first refresh so platforms have data on first
-  tick, and forwards to all platforms.
+  spins up the coordinator (polling at a fixed cadence; see
+  :data:`~.const.DEFAULT_SCAN_INTERVAL`), awaits the first refresh so platforms
+  have data on first tick, pre-registers the base devices so platforms can
+  safely set ``via_device`` references, and forwards to all platforms.
 * :func:`async_unload_entry` tears the platforms down. The aiohttp session
   is HA's, so we don't close anything.
-* :func:`_async_options_updated` reloads the entry when the user changes
-  options (e.g. scan interval) so the new value takes effect immediately.
+
+Poll interval is not user-configurable (HA Core convention — the integration
+owns its cadence). Change :data:`~.const.DEFAULT_SCAN_INTERVAL_SECONDS` if
+the upstream sample rate ever changes.
 """
 
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
 
 from aranet_cloud import AranetCloudClient
 from homeassistant.config_entries import ConfigEntry
@@ -25,12 +27,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .const import (
-    CONF_SCAN_INTERVAL,
-    DEFAULT_SCAN_INTERVAL_SECONDS,
-    DOMAIN,
-    MANUFACTURER,
-)
+from .const import DOMAIN, MANUFACTURER
 from .coordinator import AranetCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -47,12 +44,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: AranetConfigEntry) -> bo
     session = async_get_clientsession(hass)
     client = AranetCloudClient(api_key=api_key, session=session)
 
-    scan_seconds: int = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL_SECONDS)
-    coordinator = AranetCoordinator(
-        hass,
-        client=client,
-        scan_interval=timedelta(seconds=scan_seconds),
-    )
+    coordinator = AranetCoordinator(hass, entry, client=client)
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
 
@@ -73,10 +65,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: AranetConfigEntry) -> bo
             serial_number=base.id,
         )
 
-    # React to options changes (e.g. user changes the poll interval) by
-    # reloading the entry — simplest correct behaviour; HA's reload is fast.
-    entry.async_on_unload(entry.add_update_listener(_async_options_updated))
-
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
@@ -84,9 +72,3 @@ async def async_setup_entry(hass: HomeAssistant, entry: AranetConfigEntry) -> bo
 async def async_unload_entry(hass: HomeAssistant, entry: AranetConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-
-
-async def _async_options_updated(hass: HomeAssistant, entry: AranetConfigEntry) -> None:
-    """Reload the entry when the user changes options."""
-    _LOGGER.debug("Options updated for %s; reloading entry", entry.title)
-    await hass.config_entries.async_reload(entry.entry_id)

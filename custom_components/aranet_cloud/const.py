@@ -16,13 +16,11 @@ DEFAULT_NAME: Final = "Aranet Cloud"
 MANUFACTURER: Final = "Aranet"
 
 CONF_API_KEY: Final = "api_key"
-CONF_SCAN_INTERVAL: Final = "scan_interval"
 
 # Polling cadence. Aranet sensors push once a minute, so 60 s is the sweet
-# spot — faster yields no new data, slower drops responsiveness.
+# spot — faster yields no new data, slower drops responsiveness. Not
+# user-configurable per HA Core conventions (the integration owns its cadence).
 DEFAULT_SCAN_INTERVAL_SECONDS: Final = 60
-MIN_SCAN_INTERVAL_SECONDS: Final = 30
-MAX_SCAN_INTERVAL_SECONDS: Final = 600
 DEFAULT_SCAN_INTERVAL: Final = timedelta(seconds=DEFAULT_SCAN_INTERVAL_SECONDS)
 
 
