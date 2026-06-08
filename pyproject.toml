@@ -1,0 +1,58 @@
+# Tool configuration only — the integration itself is loaded by Home
+# Assistant from custom_components/aranet_cloud/, not pip-installed. There
+# is intentionally no [project] section here.
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific
+]
+ignore = [
+    "E501",   # line-too-long — defer to ruff format
+    "SIM108", # ternary-instead-of-if — clarity sometimes beats brevity
+    "RUF001", # ambiguous-unicode-character-string — em/en dashes in prose
+    "RUF002", # ambiguous-unicode-character-docstring
+    "RUF003", # ambiguous-unicode-character-comment
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]  # pytest uses assert intentionally
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unreachable = true
+# The integration package is literally named ``aranet_cloud`` — the same top-
+# level name as its dependency library. Without an explicit package base,
+# mypy names this package ``aranet_cloud`` and resolves the code's
+# ``from aranet_cloud import …`` to itself instead of the installed library.
+# Anchoring at the repo root makes the module ``custom_components.aranet_cloud``
+# so the bare ``aranet_cloud`` import resolves to the real (typed) library.
+mypy_path = "."
+namespace_packages = true
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = [
+    "homeassistant.*",
+    "voluptuous",
+    "pytest",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra --strict-markers"
+asyncio_mode = "auto"

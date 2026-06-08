@@ -8,7 +8,7 @@ Assistant via the official REST API. Works alongside (or instead of) the
 built-in Bluetooth Aranet integration — and is the only path for sensors
 that aren't in BLE range of your HA host.
 
-> **Status:** Pre-release (0.3.x). Functionally complete. v1.0 ships when
+> **Status:** Pre-release (0.6.x, Platinum quality scale). Functionally complete. v1.0 ships when
 > submitted to the HACS default registry; until then, install as a custom
 > repository.
 
@@ -53,6 +53,19 @@ should surface in HA with whatever metrics they report. If your sensor
 type isn't recognised, it still shows up as a device — just without the
 type-specific cosmetics.
 
+## Use cases
+
+- **Whole-home air quality** — pull every Aranet4/Aranet2 CO₂, temperature,
+  humidity, and pressure reading into HA, even for sensors that are nowhere
+  near your HA host's Bluetooth range (the cloud is the transport).
+- **Greenhouse / grow rooms** — VPD and daily-light-integral entities feed
+  climate and lighting automations.
+- **Soil & irrigation** — soil moisture (VWC), permittivity, and EC from
+  S6V4 / WET150 probes drive watering logic and long-term statistics.
+- **Fleet health at a glance** — per-sensor battery and signal-strength
+  diagnostics plus low-battery and base-offline binary sensors let you
+  alert before a sensor silently drops out.
+
 ## Installation
 
 ### Via HACS (custom repository)
@@ -72,6 +85,21 @@ type-specific cosmetics.
 2. Restart HA (the [`aranet-cloud`](https://pypi.org/project/aranet-cloud/)
    Python dependency is installed automatically from `manifest.json`)
 3. Add the integration via the UI as above
+
+## Removing the integration
+
+This integration follows standard Home Assistant removal — no extra steps.
+
+1. Go to **Settings → Devices & Services**.
+2. Click the **Aranet Cloud** integration entry.
+3. Use the **⋮** (three-dot) menu on the entry and choose **Delete**.
+
+Deleting the config entry removes all of the integration's devices and
+entities and discards the stored API key. To remove the integration's code
+as well, open **HACS → Aranet Cloud → ⋮ → Remove** (or delete
+`custom_components/aranet_cloud/` if you installed manually), then restart
+Home Assistant. Your Aranet Cloud account is untouched — the integration is
+read-only and never modifies it.
 
 ## Getting an API key
 
@@ -97,23 +125,89 @@ data is written to your Aranet account.
 | `sensor` | Pore EC | — | S/m or mS/cm |
 | `sensor` | Vapour-pressure deficit | `pressure` | kPa / hPa / Pa |
 | `sensor` | Day light integral | — | mol/m²/d |
-| `sensor` | Signal strength (RSSI) | `signal_strength` (diagnostic) | dBm |
+| `sensor` | Signal strength (RSSI) | `signal_strength` (diagnostic, disabled by default) | dBm |
 | `sensor` | Battery | `battery` (diagnostic) | % |
 | `sensor` | Base firmware | — (diagnostic) | version string |
 | `binary_sensor` | Low battery | `battery` | `on` = low |
 | `binary_sensor` | Base station | `connectivity` | `on` = connected |
 
-All `unique_id`s use the **device-printed hex serial** (e.g. `02D0C`),
+All `unique_id`s use the **device-printed hex serial** (e.g. `0AB12`),
 not the cloud numeric ID — so entity IDs survive any cloud-side rekeying.
+
+## Example automations
+
+Alert when a room's CO₂ climbs above 1000 ppm:
+
+```yaml
+automation:
+  - alias: "High CO₂ — Living Room"
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.living_room_co2
+        above: 1000
+    actions:
+      - action: notify.mobile_app_phone
+        data:
+          message: "Living Room CO₂ is {{ states('sensor.living_room_co2') }} ppm — ventilate."
+```
+
+Notify when a sensor reports low battery, or a base station drops offline:
+
+```yaml
+automation:
+  - alias: "Aranet sensor needs attention"
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.living_room_low_battery
+        to: "on"
+      - trigger: state
+        entity_id: binary_sensor.aranet_1a2b3c_base_station
+        to: "off"   # connectivity class: off = disconnected
+    actions:
+      - action: notify.mobile_app_phone
+        data:
+          message: "An Aranet device needs attention."
+```
+
+## How data is updated
+
+The integration **polls** Aranet Cloud once every **60 seconds** through a
+single `DataUpdateCoordinator` shared by all entities — one set of API calls
+per cycle (`measurements/last`, `telemetry/last`, `alarms/actual`, plus the
+sensor and base catalogs), not one per entity. Aranet sensors themselves
+report to the cloud roughly once a minute, so a faster cadence returns no
+new data; the interval is fixed and not user-configurable.
+
+When a sensor newly appears in your account it gains entities on the next
+poll; when one is removed from the account, its device is pruned
+automatically. If the API key is rejected mid-run, all entities go
+`unavailable` and a reauthentication prompt appears.
 
 ## Configuration
 
-After initial setup, click **Configure** on the integration tile to access
-runtime options:
+There is nothing to configure beyond the API key entered at setup. The poll
+cadence is a fixed **60 seconds** (see *How data is updated*) and is
+intentionally not user-tunable, per Home Assistant Core conventions (the
+integration owns its cadence).
 
-- **Polling interval (seconds):** how often to refresh. Default 60 s. The
-  Aranet sensors themselves push roughly once per minute, so polling much
-  faster yields no new data. Range: 30–600 s.
+If your API key is rotated or revoked, the integration triggers a
+reauthentication prompt so you can paste the new key. To change the key
+proactively, use the integration entry's **⋮ → Reconfigure** action.
+
+## Known limitations
+
+- **Cloud-only.** This integration talks to the Aranet *Cloud* REST API; it
+  does not read sensors over Bluetooth. A working internet connection and a
+  cloud-synced Aranet base station are required. For local BLE, use the
+  built-in `aranet` integration instead (the two can run side by side).
+- **Read-only.** Only `GET` endpoints are used — you cannot change sensor or
+  account settings from Home Assistant.
+- **Fixed 60 s cadence.** Sub-minute resolution is not available (and the
+  upstream sample rate wouldn't supply it anyway).
+- **User-defined alarm rules** beyond the built-in low-battery and
+  base-offline rules are not yet surfaced as binary sensors.
+- **Units follow your Aranet account preference** (°C vs °F, hPa vs mmHg,
+  etc.); Home Assistant's own unit conversion can override the display.
 
 ## Troubleshooting
 
@@ -129,8 +223,8 @@ runtime options:
 
 - Make sure you copied the full key without trailing whitespace.
 - Confirm the key wasn't revoked in the Aranet Cloud dashboard.
-- If you recently rotated, the integration will surface a Repairs entry
-  prompting you to paste the new key.
+- If you recently rotated, the integration shows a reauthentication prompt
+  (Settings → Devices & Services) so you can paste the new key.
 
 ### Entities show `unavailable`
 
@@ -162,5 +256,6 @@ generated, so it's safe to share.
 
 ## License
 
-Apache 2.0. The integration uses the [official Aranet brand assets](https://github.com/home-assistant/brands/tree/master/core_integrations/aranet)
-from the Home Assistant brands repository, contributed by Aranet (SAF Tehnika).
+Apache 2.0. Aranet branding is bundled in-repo at
+`custom_components/aranet_cloud/brand/` and served by Home Assistant's Brands
+Proxy API (HA 2026.3+); "Aranet" is a trademark of SAF Tehnika.

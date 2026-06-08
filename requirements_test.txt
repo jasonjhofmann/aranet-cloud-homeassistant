@@ -1,0 +1,5 @@
+# Test-only dependencies. The integration's runtime dep (aranet-cloud) is
+# resolved from manifest.json; pytest-homeassistant-custom-component pulls in
+# a pinned Home Assistant + pytest + pytest-asyncio.
+pytest-homeassistant-custom-component
+pytest-cov

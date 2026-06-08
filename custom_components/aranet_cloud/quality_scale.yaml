@@ -5,22 +5,22 @@ rules:
     comment: Integration does not register custom service actions.
   appropriate-polling: done
   brands:
-    status: todo
-    comment: HACS integration; not yet listed in home-assistant/brands.
+    status: done
+    comment: >-
+      Brand assets ship in-tree at custom_components/aranet_cloud/brand/ (icon,
+      logo, @2x, dark variants), served by the HA 2026.3+ local brands proxy.
+      home-assistant/brands no longer accepts custom-integration PRs, so the
+      in-tree folder is the canonical mechanism and satisfies this rule.
   common-modules: done
   config-flow: done
-  config-flow-test-coverage:
-    status: todo
-    comment: No tests yet — config-flow paths (user, reauth, abort-on-duplicate) need coverage with pytest-homeassistant-custom-component.
+  config-flow-test-coverage: done
   dependency-transparency: done
   docs-actions:
     status: exempt
     comment: No service actions to document.
   docs-high-level-description: done
   docs-installation-instructions: done
-  docs-removal-instructions:
-    status: todo
-    comment: Add a "Removing the integration" section to README.
+  docs-removal-instructions: done
   entity-event-setup:
     status: exempt
     comment: No event subscriptions; all data flow is via DataUpdateCoordinator.
@@ -41,10 +41,76 @@ rules:
   entity-unavailable: done
   integration-owner: done
   log-when-unavailable: done
-  parallel-updates:
-    status: todo
-    comment: PARALLEL_UPDATES not declared in any platform module.
+  parallel-updates: done
   reauthentication-flow: done
   test-coverage:
-    status: todo
-    comment: No test suite yet.
+    status: done
+    comment: >-
+      Full pytest suite under tests/ (config flow, setup/unload + coordinator
+      error paths, sensor + binary_sensor states, diagnostics redaction).
+      100% line coverage of custom_components/aranet_cloud; CI gates at >=95%.
+
+  # Gold
+  devices: done
+  diagnostics: done
+  discovery:
+    status: exempt
+    comment: Cloud-polling integration; sensors are enumerated from the account, not discovered on the local network.
+  discovery-update-info:
+    status: exempt
+    comment: No network discovery (see discovery).
+  docs-data-update:
+    status: done
+    comment: README "How data is updated" — single 60 s coordinator poll.
+  docs-examples:
+    status: done
+    comment: README "Example automations".
+  docs-known-limitations:
+    status: done
+    comment: README "Known limitations".
+  docs-supported-devices:
+    status: done
+    comment: README "Supported hardware".
+  docs-supported-functions:
+    status: done
+    comment: README "What you get" + "Entity reference".
+  docs-troubleshooting:
+    status: done
+    comment: README "Troubleshooting".
+  docs-use-cases:
+    status: done
+    comment: README "Use cases".
+  dynamic-devices: done
+  entity-category: done
+  entity-device-class: done
+  entity-disabled-by-default:
+    status: done
+    comment: Signal-strength (RSSI) diagnostic sensor disabled by default.
+  entity-translations: done
+  exception-translations:
+    status: done
+    comment: Coordinator raises ConfigEntryAuthFailed/UpdateFailed with translation_domain + translation_key (strings.json "exceptions").
+  icon-translations:
+    status: done
+    comment: icons.json provides icons for soil/DLI/base-firmware keys; device-class entities use HA defaults.
+  reconfiguration-flow: done
+  repair-issues:
+    status: exempt
+    comment: >-
+      No user-fixable conditions beyond credentials, which are handled by the
+      reauthentication flow. Low-battery and base-offline are ongoing states
+      surfaced as binary sensors, not actionable repairs.
+  stale-devices: done
+
+  # Platinum
+  async-dependency:
+    status: done
+    comment: The aranet-cloud library is fully async (aiohttp); no executor jobs.
+  inject-websession:
+    status: done
+    comment: HA's shared aiohttp session is passed into AranetCloudClient(session=...) in __init__ and the config flow; the library never closes an injected session.
+  strict-typing:
+    status: done
+    comment: >-
+      Integration and the aranet-cloud dependency (PEP-561 py.typed) both pass
+      mypy --strict; CI runs strict mypy over custom_components/aranet_cloud.

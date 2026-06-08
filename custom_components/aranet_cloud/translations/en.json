@@ -6,11 +6,21 @@
         "description": "Enter your Aranet Cloud API key. You can generate one from your Aranet Cloud dashboard under Account → API.",
         "data": {
           "api_key": "API key"
+        },
+        "data_description": {
+          "api_key": "The read-only key from Account → API. It is stored encrypted and never written back to your Aranet Cloud account."
         }
       },
       "reauth_confirm": {
         "title": "Re-authenticate Aranet Cloud",
         "description": "The Aranet Cloud rejected the saved API key. Generate a new one and paste it below.",
+        "data": {
+          "api_key": "API key"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Aranet Cloud",
+        "description": "Update the Aranet Cloud API key used for this account. The new key must belong to the same account.",
         "data": {
           "api_key": "API key"
         }
@@ -22,18 +32,16 @@
     },
     "abort": {
       "already_configured": "This Aranet Cloud account is already configured.",
-      "reauth_successful": "Re-authentication was successful."
+      "reauth_successful": "Re-authentication was successful.",
+      "reconfigure_successful": "The API key was updated."
     }
   },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Aranet Cloud options",
-        "description": "Adjust polling cadence. Aranet sensors push roughly once a minute, so values much lower than 60 seconds rarely return new data.",
-        "data": {
-          "scan_interval": "Polling interval (seconds)"
-        }
-      }
+  "exceptions": {
+    "auth_failed": {
+      "message": "The Aranet Cloud API key was rejected. Re-authenticate with a fresh key."
+    },
+    "update_failed": {
+      "message": "Could not update data from Aranet Cloud: {error}"
     }
   },
   "entity": {

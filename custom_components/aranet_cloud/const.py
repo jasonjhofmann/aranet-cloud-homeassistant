@@ -31,20 +31,20 @@ class Metric:
     ``measurements/last`` (``g`` gauge) or ``telemetry/last`` (``t`` telemetry).
     """
 
-    TEMPERATURE: Final = "1"               # gauge
-    HUMIDITY: Final = "2"                  # gauge
-    CO2: Final = "3"                       # gauge
-    ATMOSPHERIC_PRESSURE: Final = "4"      # gauge
+    TEMPERATURE: Final = "1"  # gauge
+    HUMIDITY: Final = "2"  # gauge
+    CO2: Final = "3"  # gauge
+    ATMOSPHERIC_PRESSURE: Final = "4"  # gauge
     VOLUMETRIC_WATER_CONTENT: Final = "8"  # gauge (soil VWC)
-    SOIL_DIELECTRIC_PERMITTIVITY: Final = "9"   # gauge (soil)
+    SOIL_DIELECTRIC_PERMITTIVITY: Final = "9"  # gauge (soil)
     SOIL_ELECTRICAL_CONDUCTIVITY: Final = "10"  # gauge (soil)
     PORE_ELECTRICAL_CONDUCTIVITY: Final = "11"  # gauge (soil)
-    FRACTION: Final = "24"                 # gauge (rarely seen)
+    FRACTION: Final = "24"  # gauge (rarely seen)
     VAPOUR_PRESSURE_DEFICIT: Final = "28"  # gauge (greenhouse)
-    DAY_LIGHT_INTEGRAL: Final = "29"       # gauge (greenhouse)
-    RSSI: Final = "61"                     # telemetry
-    BATTERY: Final = "62"                  # telemetry
-    BASE_STATUS: Final = "81"              # telemetry (base-station only)
+    DAY_LIGHT_INTEGRAL: Final = "29"  # gauge (greenhouse)
+    RSSI: Final = "61"  # telemetry
+    BATTERY: Final = "62"  # telemetry
+    BASE_STATUS: Final = "81"  # telemetry (base-station only)
 
 
 # Unit-ID → HA unit-of-measurement mapping.

@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions: {}
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Ruff (lint)
+        run: |
+          uv run --python 3.13 --with ruff \
+            ruff check custom_components/ tests/
+
+      - name: Ruff (format check)
+        run: |
+          uv run --python 3.13 --with ruff \
+            ruff format --check custom_components/ tests/
+
+      # The integration package is named ``aranet_cloud`` — the same top-level
+      # name as its dependency library — so the dependency must be installed
+      # for mypy to resolve the bare ``from aranet_cloud import …`` correctly
+      # (see the mypy_path / explicit_package_bases note in pyproject.toml).
+      - name: Mypy (strict)
+        run: |
+          uv run --python 3.13 \
+            --with mypy \
+            --with homeassistant \
+            --with aiohttp \
+            --with voluptuous \
+            --with "aranet-cloud==0.1.0" \
+            mypy custom_components/aranet_cloud/
+
+      - name: Pytest (with coverage gate)
+        run: |
+          uv run --python 3.13 \
+            --with pytest-homeassistant-custom-component \
+            --with pytest-cov \
+            --with "aranet-cloud==0.1.0" \
+            python -m pytest tests/ -v \
+              --cov=custom_components.aranet_cloud \
+              --cov-report=term-missing \
+              --cov-fail-under=95

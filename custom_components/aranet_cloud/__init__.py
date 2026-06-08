@@ -20,12 +20,13 @@ from __future__ import annotations
 
 import logging
 
-from aranet_cloud import AranetCloudClient
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY, Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+from aranet_cloud import AranetCloudClient
 
 from .const import DOMAIN, MANUFACTURER
 from .coordinator import AranetCoordinator
@@ -48,11 +49,35 @@ async def async_setup_entry(hass: HomeAssistant, entry: AranetConfigEntry) -> bo
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
 
-    # Pre-register the base devices so platforms can safely set ``via_device``
-    # references on sensor entities. HA deprecated implicit parent-device
-    # creation in DeviceInfo; from 2025.12 onwards the parent must exist by
-    # the time the child is registered. Doing it here once (rather than relying
-    # on platform-add order) is the canonical pattern.
+    # Register base devices up front so sensor entities can reference them via
+    # ``via_device`` (HA requires the parent to exist before the child).
+    _register_base_devices(hass, entry, coordinator)
+
+    # Keep the device set in sync on every refresh: register bases that appear
+    # later (dynamic-devices) and prune devices the cloud no longer reports
+    # (stale-devices). Registered before the platforms forward so it runs ahead
+    # of the platform add-entity listeners on each coordinator update.
+    @callback
+    def _sync_devices() -> None:
+        _register_base_devices(hass, entry, coordinator)
+        _async_remove_stale_devices(hass, entry, coordinator)
+
+    entry.async_on_unload(coordinator.async_add_listener(_sync_devices))
+
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: AranetConfigEntry) -> bool:
+    """Unload a config entry."""
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+@callback
+def _register_base_devices(
+    hass: HomeAssistant, entry: AranetConfigEntry, coordinator: AranetCoordinator
+) -> None:
+    """Create/update a device for every base station in the snapshot."""
     device_reg = dr.async_get(hass)
     for base in coordinator.data.bases.values():
         device_reg.async_get_or_create(
@@ -65,10 +90,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: AranetConfigEntry) -> bo
             serial_number=base.id,
         )
 
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    return True
 
+@callback
+def _async_remove_stale_devices(
+    hass: HomeAssistant, entry: AranetConfigEntry, coordinator: AranetCoordinator
+) -> None:
+    """Drop devices for sensors/bases the cloud no longer reports."""
+    snapshot = coordinator.data
+    current: set[tuple[str, str]] = {
+        (DOMAIN, f"base_{base.id}") for base in snapshot.bases.values()
+    }
+    current |= {(DOMAIN, sensor.serial) for sensor in snapshot.sensors.values()}
 
-async def async_unload_entry(hass: HomeAssistant, entry: AranetConfigEntry) -> bool:
-    """Unload a config entry."""
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    device_reg = dr.async_get(hass)
+    for device in dr.async_entries_for_config_entry(device_reg, entry.entry_id):
+        if device.identifiers.isdisjoint(current):
+            device_reg.async_update_device(
+                device.id, remove_config_entry_id=entry.entry_id
+            )

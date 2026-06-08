@@ -1,0 +1,11 @@
+{
+  "entity": {
+    "sensor": {
+      "soil_permittivity": { "default": "mdi:water-percent" },
+      "soil_ec": { "default": "mdi:flash-triangle" },
+      "pore_ec": { "default": "mdi:water-percent-alert" },
+      "day_light_integral": { "default": "mdi:white-balance-sunny" },
+      "base_firmware": { "default": "mdi:chip" }
+    }
+  }
+}
