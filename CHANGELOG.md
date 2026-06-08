@@ -10,10 +10,11 @@ Nothing yet.
 
 ## [0.6.0] — 2026-06-08
 
-Quality scale **Gold → Platinum** (`manifest.json` `"quality_scale": "platinum"`).
+Quality scale **Gold → Platinum** (`manifest.json` `"quality_scale": "platinum"`),
+plus a logging and documentation pass.
 
-No behaviour change — the three Platinum rules were already met and are now
-declared:
+The three Platinum rules were already met and are now declared (no functional
+change to entities or devices):
 
 - **`async-dependency`** — the `aranet-cloud` library is fully async (aiohttp);
   the integration never offloads to the executor.
@@ -21,6 +22,24 @@ declared:
   into `AranetCloudClient(session=...)` (the library never closes it).
 - **`strict-typing`** — the integration and the `aranet-cloud` dependency
   (PEP-561 `py.typed`) both pass `mypy --strict`; CI enforces it.
+
+### Logging
+
+- Level-appropriate, secret-safe logging across the lifecycle: `debug` for
+  setup (entry name, sensor/base counts, poll interval), each poll (counts),
+  and dynamic entity additions (with unique IDs); an `info` line when a stale
+  device is pruned. The API key is never logged at any level. See
+  *README → Troubleshooting → Enabling debug logs*.
+
+### Documentation
+
+- `info.md`: removed the stale "Options panel for tunable poll cadence" line
+  (the OptionsFlow was dropped in 0.4.0); now documents the fixed 60 s
+  cadence, dynamic/stale devices, and the reconfigure flow.
+- `README.md`: added an **Enabling debug logs** section; corrected the
+  "unavailable" tip (Signal strength is disabled by default).
+- `CONTRIBUTING.md`: how to run the integration's own ruff / mypy / pytest
+  checks, plus the mypy package-name-shadowing note.
 
 ## [0.5.0] — 2026-06-08
 

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from unittest.mock import MagicMock
 
+import pytest
 from aranet_cloud import AranetAuthError, AranetError
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
@@ -77,7 +79,9 @@ async def test_setup_api_error_is_retried(
 
 
 async def test_dynamic_devices_adds_appearing_sensor(
-    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A sensor that shows up after setup gets entities on the next refresh."""
     # Start with only the air sensor present.
@@ -99,24 +103,31 @@ async def test_dynamic_devices_adds_appearing_sensor(
 
     # Soil sensor now appears in the cloud.
     client.get_sensors.return_value = data.build_sensors()
-    await mock_config_entry.runtime_data.async_refresh()
-    await hass.async_block_till_done()
+    with caplog.at_level(logging.DEBUG, logger="custom_components.aranet_cloud"):
+        await mock_config_entry.runtime_data.async_refresh()
+        await hass.async_block_till_done()
 
     assert ent_reg.async_get_entity_id("sensor", DOMAIN, SOIL_VWC_UID) is not None
+    # The dynamic add is logged at debug with the new entity's unique_id.
+    assert "Adding" in caplog.text
+    assert SOIL_VWC_UID in caplog.text
 
 
 async def test_stale_devices_are_pruned(
     hass: HomeAssistant,
     init_integration: MockConfigEntry,
     mock_client: MagicMock,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A sensor the cloud stops reporting has its device removed."""
+    """A sensor the cloud stops reporting has its device removed (and logged)."""
     device_reg = dr.async_get(hass)
     assert device_reg.async_get_device(identifiers=SOIL_DEVICE) is not None
 
     # Cloud drops the soil sensor.
     mock_client.get_sensors.return_value = [data.build_air_sensor()]
-    await init_integration.runtime_data.async_refresh()
-    await hass.async_block_till_done()
+    with caplog.at_level(logging.INFO, logger="custom_components.aranet_cloud"):
+        await init_integration.runtime_data.async_refresh()
+        await hass.async_block_till_done()
 
     assert device_reg.async_get_device(identifiers=SOIL_DEVICE) is None
+    assert "no longer reported by the Aranet Cloud account" in caplog.text

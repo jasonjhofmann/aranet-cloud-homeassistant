@@ -125,7 +125,8 @@ class AranetCoordinator(DataUpdateCoordinator[AranetSnapshot]):
             links=links,
         )
         _LOGGER.debug(
-            "Snapshot: %d sensors, %d bases, %d readings, %d active alarms",
+            "Polled Aranet Cloud: %d sensor(s), %d base(s), %d reading(s), "
+            "%d active alarm(s)",
             len(snapshot.sensors),
             len(snapshot.bases),
             len(snapshot.readings),

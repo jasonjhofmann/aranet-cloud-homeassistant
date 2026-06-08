@@ -231,8 +231,35 @@ proactively, use the integration entry's **⋮ → Reconfigure** action.
 - Check the integration tile for setup errors.
 - Click **Download diagnostics** and inspect the `coordinator.last_update_success`
   flag and the raw snapshot — the API key is auto-redacted.
-- The Aranet sensors themselves go silent when out of range of their
-  base station; check the RSSI entity (low values mean weak signal).
+- The Aranet sensors themselves go silent when out of range of their base
+  station. Enable the per-sensor **Signal strength** entity (it's a
+  diagnostic, disabled by default) to watch for a weak signal.
+
+### Enabling debug logs
+
+Add this to `configuration.yaml` and restart (or call the
+`logger.set_level` service for a no-restart change):
+
+```yaml
+logger:
+  logs:
+    custom_components.aranet_cloud: debug
+    aranet_cloud: debug   # the underlying REST client library
+```
+
+At `debug` you'll see, in `Settings → System → Logs`:
+
+- **Setup** — the entry name, sensor/base counts, and poll interval.
+- **Each poll** — `Polled Aranet Cloud: N sensor(s), N base(s), …` once per
+  cycle, so you can confirm data is flowing and how much.
+- **Entity changes** — `Adding N sensor entit…: <unique_id>, …` whenever a
+  new sensor or metric appears.
+- **Device cleanup** — a one-line `INFO` (no debug needed) when a device is
+  removed because the account stopped reporting it.
+
+The API key is **never** logged at any level. Coordinator failures are
+logged once when they start and once when they recover (Home Assistant's
+standard coordinator behaviour), so a flaky connection won't spam the log.
 
 ## Reporting issues
 

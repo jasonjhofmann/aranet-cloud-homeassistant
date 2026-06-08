@@ -8,6 +8,11 @@ Per HA's modern pattern:
   :data:`~.const.DEFAULT_SCAN_INTERVAL`), awaits the first refresh so platforms
   have data on first tick, pre-registers the base devices so platforms can
   safely set ``via_device`` references, and forwards to all platforms.
+  A coordinator listener then keeps the device set in sync on every poll —
+  registering base devices that appear later (see :func:`_register_base_devices`)
+  and pruning devices the account stops reporting
+  (see :func:`_async_remove_stale_devices`). Per-platform listeners add the
+  matching entities (dynamic devices).
 * :func:`async_unload_entry` tears the platforms down. The aiohttp session
   is HA's, so we don't close anything.
 
@@ -48,6 +53,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: AranetConfigEntry) -> bo
     coordinator = AranetCoordinator(hass, entry, client=client)
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
+    _LOGGER.debug(
+        "Set up '%s': %d sensor(s), %d base(s), polling every %s",
+        entry.title,
+        len(coordinator.data.sensors),
+        len(coordinator.data.bases),
+        coordinator.update_interval,
+    )
 
     # Register base devices up front so sensor entities can reference them via
     # ``via_device`` (HA requires the parent to exist before the child).
@@ -105,6 +117,11 @@ def _async_remove_stale_devices(
     device_reg = dr.async_get(hass)
     for device in dr.async_entries_for_config_entry(device_reg, entry.entry_id):
         if device.identifiers.isdisjoint(current):
+            _LOGGER.info(
+                "Removing device '%s' — it is no longer reported by the "
+                "Aranet Cloud account",
+                device.name_by_user or device.name or device.id,
+            )
             device_reg.async_update_device(
                 device.id, remove_config_entry_id=entry.entry_id
             )

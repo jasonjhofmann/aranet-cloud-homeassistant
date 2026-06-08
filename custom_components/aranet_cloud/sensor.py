@@ -15,6 +15,7 @@ printed on the device — it survives any cloud-side rekeying.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -30,6 +31,8 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, MANUFACTURER, Metric, unit_for_id
+
+_LOGGER = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -206,6 +209,12 @@ async def async_setup_entry(
         known.clear()
         known.update(desired)
         if new_entities:
+            _LOGGER.debug(
+                "Adding %d sensor entit%s: %s",
+                len(new_entities),
+                "y" if len(new_entities) == 1 else "ies",
+                ", ".join(sorted(e.unique_id for e in new_entities if e.unique_id)),
+            )
             async_add_entities(new_entities)
 
     _add_entities()
