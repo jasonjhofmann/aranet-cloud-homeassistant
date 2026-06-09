@@ -883,12 +883,12 @@ rules:
     validate-hassfest:
       runs-on: ubuntu-latest
       steps:
-        - uses: actions/checkout@v4
+        - uses: actions/checkout@v5
         - uses: home-assistant/actions/hassfest@master
     validate-hacs:
       runs-on: ubuntu-latest
       steps:
-        - uses: actions/checkout@v4
+        - uses: actions/checkout@v5
         - uses: hacs/action@main
           with:
             category: integration
