@@ -5,6 +5,10 @@
       "soil_ec": { "default": "mdi:flash-triangle" },
       "pore_ec": { "default": "mdi:water-percent-alert" },
       "day_light_integral": { "default": "mdi:white-balance-sunny" },
+      "distance": { "default": "mdi:ruler" },
+      "differential_pressure": { "default": "mdi:gauge" },
+      "radon": { "default": "mdi:radioactive" },
+      "fraction": { "default": "mdi:division" },
       "base_firmware": { "default": "mdi:chip" }
     }
   }

@@ -8,6 +8,34 @@ versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Nothing yet.
 
+## [0.7.0] — 2026-06-09
+
+### Added
+
+- **Complete metric coverage** — six metric classes from the Aranet Cloud
+  catalog that were previously dropped now render as entities, so every
+  catalog metric is supported:
+  - **Voltage** (device class `voltage`) and **Weight** (device class
+    `weight`) — all their units are valid Home Assistant units.
+  - **Distance**, **Differential pressure**, **Radon**, and **Fraction** —
+    rendered as plain measurement sensors (no device class). Distance carries
+    a `mil` unit and differential pressure a `mmH₂O` unit that Home Assistant
+    doesn't define, and radon/fraction have no HA device class; radon mirrors
+    the built-in BLE `aranet` integration (`Bq/m³`, `MEASUREMENT`).
+  - Ground truth sourced from the live `/api/metrics` + `/api/user/units`
+    responses; the new unit IDs are mapped in `UNIT_BY_ID`.
+
+### Fixed (docs)
+
+- Corrected two **overclaims** in the hardware/metric docs (README + info.md):
+  - The "tested" sensor-type list claimed Aranet2 (S4V5) and the 0–10 VDC /
+    4–20 mA transmitter bridges (S5V1/S5V2), which were never tested on
+    hardware. Split into **Verified on real hardware** (Aranet4 S4V1, Aranet
+    legacy S1V16, soil S6V4, WET150 S6V1) vs. **Expected — not yet verified**
+    (now a *device-type* caveat only — metric coverage is complete).
+  - Documented the full metric set in a **Supported metrics** section and the
+    Entity reference table; corrected the soil/pore EC unit (`mS/cm`).
+
 ## [0.6.0] — 2026-06-08
 
 Quality scale **Gold → Platinum** (`manifest.json` `"quality_scale": "platinum"`),

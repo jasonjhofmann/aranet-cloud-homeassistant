@@ -16,10 +16,12 @@ that aren't in BLE range of your HA host.
 
 - **One Home Assistant device per Aranet sensor**, grouped under a parent
   device for each base station — the same hierarchy you see in the Aranet app.
-- **Sensors** for every metric your sensors report:
+- **Sensors** for each supported metric your sensors report:
   temperature, humidity, CO₂, atmospheric pressure, volumetric water
   content, soil + pore electrical conductivity, soil dielectric permittivity,
   vapour-pressure deficit, day light integral, RSSI (signal), battery.
+  (See [Supported metrics](#supported-metrics) — unrecognised metrics aren't
+  surfaced yet.)
 - **Binary sensors** for the built-in Aranet alarm rules: per-sensor low
   battery, per-base-station offline.
 - **Diagnostic entity** per base station showing firmware version.
@@ -37,21 +39,52 @@ that aren't in BLE range of your HA host.
 
 ## Supported hardware
 
-All sensor types in the Aranet Cloud catalog work — the integration is
-driven by what your account actually reports, not a hard-coded sensor list.
-Tested against:
+The integration is **catalog-driven**: it doesn't hard-code a list of sensor
+models. It creates a Home Assistant device for any Aranet sensor on your
+account that reports at least one metric it knows how to render (see
+[Supported metrics](#supported-metrics) below), so new and Pro/virtual sensor
+types appear automatically.
+
+### Verified on real hardware
+
+These types have been tested end-to-end against physical sensors:
 
 - **Aranet4 (S4V1)** — 4-in-1 air quality (T, RH, CO₂, P)
-- **Aranet2 (S4V5)** — lower-tier air quality
 - **Aranet legacy (S1V16)** — older 2-metric model
-- **Soil moisture S6V4** — capacitive soil + temp
-- **Soil VWC, EC and T (S6V1)** — Delta-T WET150 multi-parameter probe
-- **0–10 VDC / 4–20 mA transmitters (S5V1 / S5V2)** — industrial input bridges
+- **Soil moisture (S6V4)** — capacitive soil + temperature
+- **Soil VWC / EC / T (S6V1)** — Delta-T WET150 multi-parameter probe
 
-The Aranet Cloud catalog lists 53 sensor types in total; any of them
-should surface in HA with whatever metrics they report. If your sensor
-type isn't recognised, it still shows up as a device — just without the
-type-specific cosmetics.
+### Expected to work — not yet verified
+
+The Aranet Cloud catalog lists ~53 sensor *types*. Every **metric** they can
+report is rendered (see [Supported metrics](#supported-metrics)), but the
+following device types haven't been exercised on physical hardware — for
+example the **Aranet2 (S4V5)**, the **0–10 VDC / 4–20 mA transmitter bridges
+(S5V1 / S5V2)**, the **Radon Plus PRO**, and Pro/virtual sensor types. They
+should appear and work; if you have one, a
+[diagnostics download](#reporting-issues) on an issue is very welcome.
+
+## Supported metrics
+
+The integration renders an entity for **every metric class in the Aranet Cloud
+catalog**. A sensor gets a `sensor` entity for each of these it reports:
+
+- temperature, humidity, CO₂, atmospheric pressure
+- soil moisture (VWC), soil permittivity, soil EC, pore EC
+- vapour-pressure deficit, day-light integral
+- voltage, weight, distance, differential pressure
+- radon, fraction
+- signal strength, battery
+
+(See [Entity reference](#entity-reference) for device classes and units.) Plus
+the built-in **Low battery** / **Base station offline** binary sensors and a
+per-base firmware diagnostic.
+
+Coverage is complete against the current catalog. A *future* metric Aranet
+adds would be skipped until added here — a one-row change to `METRIC_REGISTRY`
+(see [CONTRIBUTING](CONTRIBUTING.md)). Units follow your Aranet account
+preference (°C vs °F, hPa vs mmHg, …); an unrecognised unit shows the value
+with no unit label.
 
 ## Use cases
 
@@ -121,10 +154,16 @@ data is written to your Aranet account.
 | `sensor` | Atmospheric pressure | `atmospheric_pressure` | mmHg / hPa / inHg (account preference) |
 | `sensor` | Soil moisture (VWC) | `moisture` | % |
 | `sensor` | Soil permittivity | — | (unitless) |
-| `sensor` | Soil EC | — | S/m or mS/cm |
-| `sensor` | Pore EC | — | S/m or mS/cm |
-| `sensor` | Vapour-pressure deficit | `pressure` | kPa / hPa / Pa |
-| `sensor` | Day light integral | — | mol/m²/d |
+| `sensor` | Soil EC | — | mS/cm |
+| `sensor` | Pore EC | — | mS/cm |
+| `sensor` | Vapour-pressure deficit | `pressure` | kPa / hPa / Pa (account preference) |
+| `sensor` | Day light integral | — | mol/m²/d or µmol/m²/d |
+| `sensor` | Voltage | `voltage` | V or mV (account preference) |
+| `sensor` | Weight | `weight` | kg or lb (account preference) |
+| `sensor` | Distance | — | m / cm / ft / in / mm (account preference) |
+| `sensor` | Differential pressure | — | Pa / mbar / mmH₂O (account preference) |
+| `sensor` | Radon | — | Bq/m³ or pCi/L (account preference) |
+| `sensor` | Fraction | — | (unitless) |
 | `sensor` | Signal strength (RSSI) | `signal_strength` (diagnostic, disabled by default) | dBm |
 | `sensor` | Battery | `battery` (diagnostic) | % |
 | `sensor` | Base firmware | — (diagnostic) | version string |

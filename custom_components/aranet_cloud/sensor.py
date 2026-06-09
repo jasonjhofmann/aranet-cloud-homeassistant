@@ -163,6 +163,60 @@ METRIC_REGISTRY: dict[str, AranetMetricDescription] = {
         entity_category=EntityCategory.DIAGNOSTIC,
         suggested_display_precision=0,
     ),
+    # --- Additional Aranet Cloud catalog metrics (HAR-verified 2026-06-09) ---
+    # These appear on specialty / Pro / transmitter sensors. Device classes are
+    # set only where every Aranet unit option is a valid HA unit for the class.
+    Metric.VOLTAGE: AranetMetricDescription(
+        metric_id=Metric.VOLTAGE,
+        key="voltage",
+        translation_key="voltage",
+        device_class=SensorDeviceClass.VOLTAGE,  # units V, mV — both HA-valid
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=3,
+    ),
+    Metric.WEIGHT: AranetMetricDescription(
+        metric_id=Metric.WEIGHT,
+        key="weight",
+        translation_key="weight",
+        device_class=SensorDeviceClass.WEIGHT,  # units kg, lb — both HA-valid
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=3,
+    ),
+    # Distance carries a "mil" (thou) unit option that HA's distance device
+    # class doesn't recognise, so no device_class — plain measurement sensor.
+    Metric.DISTANCE: AranetMetricDescription(
+        metric_id=Metric.DISTANCE,
+        key="distance",
+        translation_key="distance",
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=3,
+    ),
+    # Differential pressure carries "mmH₂O", not an HA pressure unit → no
+    # device_class.
+    Metric.DIFFERENTIAL_PRESSURE: AranetMetricDescription(
+        metric_id=Metric.DIFFERENTIAL_PRESSURE,
+        key="differential_pressure",
+        translation_key="differential_pressure",
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
+    ),
+    # Radon has no HA device class (mirrors the built-in BLE aranet integration:
+    # Bq/m³ + MEASUREMENT, no device_class).
+    Metric.RADON: AranetMetricDescription(
+        metric_id=Metric.RADON,
+        key="radon",
+        translation_key="radon",
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+    ),
+    # Fraction — dimensionless ratio, no device class or fixed unit.
+    Metric.FRACTION: AranetMetricDescription(
+        metric_id=Metric.FRACTION,
+        key="fraction",
+        translation_key="fraction",
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
+    ),
 }
 
 
