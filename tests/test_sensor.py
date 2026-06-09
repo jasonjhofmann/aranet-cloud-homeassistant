@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from unittest.mock import MagicMock
 
 import pytest
 from aranet_cloud import AranetError
 from homeassistant.const import (
+    ATTR_DEVICE_CLASS,
     ATTR_UNIT_OF_MEASUREMENT,
     STATE_UNAVAILABLE,
     EntityCategory,
@@ -115,10 +117,41 @@ async def test_entities_unavailable_after_failed_refresh(
     assert state.state == STATE_UNAVAILABLE
 
 
-async def test_unknown_metric_is_skipped(
+async def test_specialty_metrics_render(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry
 ) -> None:
-    """A sensor skill for a metric we don't model produces no entity."""
+    """The added catalog metrics render with the right unit and device class."""
+    client = build_mock_client(
+        sensors=[data.build_specialty_sensor()],
+        measurements=data.build_specialty_readings(),
+        telemetry=[],
+    )
+    await setup_integration(hass, mock_config_entry, client)
+    ser = data.SPECIALTY_SENSOR_SERIAL
+
+    # metric, value, expected unit, expected device_class (None = no class)
+    cases = [
+        (data.M_VOLTAGE, 3.3, "V", "voltage"),
+        (data.M_WEIGHT, 12.5, "kg", "weight"),
+        (data.M_DISTANCE, 1.42, "m", None),  # "mil" option → no device class
+        (data.M_DIFF_PRESSURE, 25.0, "Pa", None),  # "mmH₂O" option → no class
+        (data.M_RADON, 48.0, "Bq/m³", None),  # HA has no radon class
+        (data.M_FRACTION, 0.5, None, None),  # dimensionless
+    ]
+    for metric, value, unit, dev_class in cases:
+        state = state_for(hass, "sensor", _uid(ser, metric))
+        assert state is not None, f"no entity for metric {metric}"
+        assert float(state.state) == pytest.approx(value)
+        assert state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == unit
+        assert state.attributes.get(ATTR_DEVICE_CLASS) == dev_class
+
+
+async def test_unknown_metric_is_skipped(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A metric we don't model produces no entity, and is logged once at debug."""
     from aranet_cloud import Sensor, Skill
 
     odd = Sensor(
@@ -144,10 +177,12 @@ async def test_unknown_metric_is_skipped(
         ],
         telemetry=[],
     )
-    await setup_integration(hass, mock_config_entry, client)
+    with caplog.at_level(logging.DEBUG, logger="custom_components.aranet_cloud"):
+        await setup_integration(hass, mock_config_entry, client)
 
     ent_reg = er.async_get(hass)
     # The modelled CO2 metric exists...
     assert ent_reg.async_get_entity_id("sensor", DOMAIN, _uid("0ZZ99", data.M_CO2))
-    # ...but the unknown metric was silently skipped.
+    # ...but the unknown metric was skipped — and that skip is logged.
     assert ent_reg.async_get_entity_id("sensor", DOMAIN, _uid("0ZZ99", "9999")) is None
+    assert "metric id 9999" in caplog.text

@@ -163,6 +163,60 @@ METRIC_REGISTRY: dict[str, AranetMetricDescription] = {
         entity_category=EntityCategory.DIAGNOSTIC,
         suggested_display_precision=0,
     ),
+    # --- Additional Aranet Cloud catalog metrics (HAR-verified 2026-06-09) ---
+    # These appear on specialty / Pro / transmitter sensors. Device classes are
+    # set only where every Aranet unit option is a valid HA unit for the class.
+    Metric.VOLTAGE: AranetMetricDescription(
+        metric_id=Metric.VOLTAGE,
+        key="voltage",
+        translation_key="voltage",
+        device_class=SensorDeviceClass.VOLTAGE,  # units V, mV — both HA-valid
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=3,
+    ),
+    Metric.WEIGHT: AranetMetricDescription(
+        metric_id=Metric.WEIGHT,
+        key="weight",
+        translation_key="weight",
+        device_class=SensorDeviceClass.WEIGHT,  # units kg, lb — both HA-valid
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=3,
+    ),
+    # Distance carries a "mil" (thou) unit option that HA's distance device
+    # class doesn't recognise, so no device_class — plain measurement sensor.
+    Metric.DISTANCE: AranetMetricDescription(
+        metric_id=Metric.DISTANCE,
+        key="distance",
+        translation_key="distance",
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=3,
+    ),
+    # Differential pressure carries "mmH₂O", not an HA pressure unit → no
+    # device_class.
+    Metric.DIFFERENTIAL_PRESSURE: AranetMetricDescription(
+        metric_id=Metric.DIFFERENTIAL_PRESSURE,
+        key="differential_pressure",
+        translation_key="differential_pressure",
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
+    ),
+    # Radon has no HA device class (mirrors the built-in BLE aranet integration:
+    # Bq/m³ + MEASUREMENT, no device_class).
+    Metric.RADON: AranetMetricDescription(
+        metric_id=Metric.RADON,
+        key="radon",
+        translation_key="radon",
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+    ),
+    # Fraction — dimensionless ratio, no device class or fixed unit.
+    Metric.FRACTION: AranetMetricDescription(
+        metric_id=Metric.FRACTION,
+        key="fraction",
+        translation_key="fraction",
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
+    ),
 }
 
 
@@ -176,6 +230,9 @@ async def async_setup_entry(
     # Tracks the per-entity keys we've already added; pruned to the live set on
     # each refresh so a sensor that disappears and returns gets a fresh entity.
     known: set[str] = set()
+    # Remembers which (sensor, metric) skips we've already logged, so the
+    # debug line below fires once rather than every coordinator cycle.
+    logged_skips: set[str] = set()
 
     @callback
     def _add_entities() -> None:
@@ -196,8 +253,18 @@ async def async_setup_entry(
             for metric_id in sensor.active_metrics:
                 description = METRIC_REGISTRY.get(metric_id)
                 if description is None:
-                    # Unknown metric → silently skip; forward-compatible with
-                    # new server-side metrics.
+                    # Metric we don't render yet → skip (forward-compatible with
+                    # new Aranet metrics). Log once so it's discoverable: the
+                    # fix is a one-row addition to METRIC_REGISTRY.
+                    skip_key = f"{sensor.serial}_{metric_id}"
+                    if skip_key not in logged_skips:
+                        logged_skips.add(skip_key)
+                        _LOGGER.debug(
+                            "Sensor %s reports metric id %s, which this "
+                            "integration doesn't render yet — skipping",
+                            sensor.serial,
+                            metric_id,
+                        )
                     continue
                 key = f"{sensor.serial}_{metric_id}"
                 desired.add(key)

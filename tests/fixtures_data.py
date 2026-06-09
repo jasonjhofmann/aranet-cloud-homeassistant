@@ -32,6 +32,16 @@ M_PORE_EC = "11"
 M_RSSI = "61"
 M_BATTERY = "62"
 M_BASE_STATUS = "81"
+# Additional catalog metrics (specialty / Pro / transmitter sensors).
+M_VOLTAGE = "5"
+M_WEIGHT = "7"
+M_DISTANCE = "13"
+M_DIFF_PRESSURE = "17"
+M_FRACTION = "24"
+M_RADON = "30"
+
+SPECIALTY_SENSOR_ID = "4205950"
+SPECIALTY_SENSOR_SERIAL = "0CC03"
 
 
 def build_base(*, base_id: str = BASE_ID, name: str = "Aranet-1a2b3c") -> Base:
@@ -81,6 +91,32 @@ def build_soil_sensor() -> Sensor:
         ),
         pairings=[Pairing(base=BASE_ID, paired_at=FIXED_TIME, removed_at=None)],
     )
+
+
+def build_specialty_sensor() -> Sensor:
+    """A sensor exercising the additional catalog metrics (voltage/weight/etc.)."""
+    return Sensor(
+        id=SPECIALTY_SENSOR_ID,
+        serial=SPECIALTY_SENSOR_SERIAL,
+        name="Test Rig",
+        type="S5V1",
+        skills=_skills(
+            M_VOLTAGE, M_WEIGHT, M_DISTANCE, M_DIFF_PRESSURE, M_RADON, M_FRACTION
+        ),
+        pairings=[Pairing(base=BASE_ID, paired_at=FIXED_TIME, removed_at=None)],
+    )
+
+
+def build_specialty_readings() -> list[Reading]:
+    """Gauge readings for the specialty sensor, one per added metric."""
+    return [
+        _reading(SPECIALTY_SENSOR_ID, M_VOLTAGE, "5", 3.3),  # V
+        _reading(SPECIALTY_SENSOR_ID, M_WEIGHT, "7", 12.5),  # kg
+        _reading(SPECIALTY_SENSOR_ID, M_DISTANCE, "10", 1.42),  # m
+        _reading(SPECIALTY_SENSOR_ID, M_DIFF_PRESSURE, "131", 25.0),  # Pa
+        _reading(SPECIALTY_SENSOR_ID, M_RADON, "23", 48.0),  # Bq/m³
+        _reading(SPECIALTY_SENSOR_ID, M_FRACTION, "18", 0.5),  # unitless
+    ]
 
 
 def build_sensors() -> list[Sensor]:

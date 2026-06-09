@@ -10,5 +10,5 @@
   "issue_tracker": "https://github.com/jasonjhofmann/aranet-cloud-homeassistant/issues",
   "quality_scale": "platinum",
   "requirements": ["aranet-cloud==0.1.0"],
-  "version": "0.6.0"
+  "version": "0.7.0"
 }

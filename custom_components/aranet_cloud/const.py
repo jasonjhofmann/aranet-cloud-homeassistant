@@ -35,13 +35,18 @@ class Metric:
     HUMIDITY: Final = "2"  # gauge
     CO2: Final = "3"  # gauge
     ATMOSPHERIC_PRESSURE: Final = "4"  # gauge
+    VOLTAGE: Final = "5"  # gauge (analog-input transmitters)
+    WEIGHT: Final = "7"  # gauge (load cell)
     VOLUMETRIC_WATER_CONTENT: Final = "8"  # gauge (soil VWC)
     SOIL_DIELECTRIC_PERMITTIVITY: Final = "9"  # gauge (soil)
     SOIL_ELECTRICAL_CONDUCTIVITY: Final = "10"  # gauge (soil)
     PORE_ELECTRICAL_CONDUCTIVITY: Final = "11"  # gauge (soil)
+    DISTANCE: Final = "13"  # gauge (level/range)
+    DIFFERENTIAL_PRESSURE: Final = "17"  # gauge
     FRACTION: Final = "24"  # gauge (rarely seen)
     VAPOUR_PRESSURE_DEFICIT: Final = "28"  # gauge (greenhouse)
     DAY_LIGHT_INTEGRAL: Final = "29"  # gauge (greenhouse)
+    RADON: Final = "30"  # gauge (Radon Plus PRO)
     RSSI: Final = "61"  # telemetry
     BATTERY: Final = "62"  # telemetry
     BASE_STATUS: Final = "81"  # telemetry (base-station only)
@@ -92,12 +97,34 @@ UNIT_BY_ID: Final[dict[str, str]] = {
     # electrical conductivity (soil)
     "8": "S/m",
     "108": "mS/cm",
-    # voltage
+    # battery voltage telemetry
     "16": "V",
     # day light integral
     "22": "µmol/m²/d",
     "140": "mol/m²/d",
     "142": "mol/m2/d",
+    # voltage (analog-input metric)
+    "5": "V",
+    "125": "mV",
+    # weight
+    "7": "kg",
+    "107": "lb",
+    # distance — note: "mil" (thou) has no HA UnitOfLength, so the Distance
+    # metric is rendered without a device class (see METRIC_REGISTRY).
+    "10": "m",
+    "110": "cm",
+    "112": "ft",
+    "111": "in",
+    "113": "mil",
+    "109": "mm",
+    # differential pressure — "mmH₂O" has no HA UnitOfPressure, so this metric
+    # is also rendered without a device class.
+    "131": "Pa",
+    "126": "mbar",
+    "127": "mmH₂O",
+    # radon
+    "23": "Bq/m³",
+    "143": "pCi/L",
 }
 
 

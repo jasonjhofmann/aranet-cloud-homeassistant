@@ -8,10 +8,11 @@ Assistant — including ones that aren't in Bluetooth range of the HA host.
 
 - Discovers every Aranet sensor + base station on your account
 - Creates one HA device per sensor, parented to its base station
-- Exposes every metric your sensors report (temperature, humidity, CO₂,
-  atmospheric pressure, soil moisture, soil EC, pore EC, soil
-  permittivity, vapour-pressure deficit, day light integral, RSSI,
-  battery) as standard `sensor` entities
+- Exposes every metric class in the Aranet Cloud catalog as standard `sensor`
+  entities — temperature, humidity, CO₂, atmospheric pressure, soil moisture,
+  soil/pore EC, soil permittivity, vapour-pressure deficit, day light integral,
+  voltage, weight, distance, differential pressure, radon, fraction, RSSI, and
+  battery
 - Surfaces Aranet's built-in alarm rules (Low battery, Base station
   offline) as `binary_sensor` entities
 - Adds a diagnostic firmware entity to each base station
@@ -37,9 +38,12 @@ against the live API before saving.
 
 ## Supported sensor types
 
-53 Aranet sensor types covered (whatever your account reports). Tested
-end-to-end with Aranet4, Aranet2, Aranet legacy 2-metric, basic capacitive
-soil moisture, and the WET150 multi-parameter soil probe.
+The integration is catalog-driven — any sensor on your account appears, as
+long as it reports one of the supported metrics (above). **Verified on real
+hardware:** Aranet4 (S4V1), Aranet legacy 2-metric (S1V16), capacitive soil
+moisture (S6V4), and the WET150 multi-parameter soil probe (S6V1). The other
+~53 catalog types (e.g. Aranet2, the 0–10 VDC / 4–20 mA transmitter bridges)
+should work but haven't been tested on hardware yet.
 
 ## More information
 

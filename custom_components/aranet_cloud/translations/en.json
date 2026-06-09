@@ -56,6 +56,12 @@
       "pore_ec": { "name": "Pore EC" },
       "vapour_pressure_deficit": { "name": "Vapour-pressure deficit" },
       "day_light_integral": { "name": "Day light integral" },
+      "voltage": { "name": "Voltage" },
+      "weight": { "name": "Weight" },
+      "distance": { "name": "Distance" },
+      "differential_pressure": { "name": "Differential pressure" },
+      "radon": { "name": "Radon" },
+      "fraction": { "name": "Fraction" },
       "rssi": { "name": "Signal strength" },
       "battery": { "name": "Battery" },
       "base_firmware": { "name": "Firmware" }

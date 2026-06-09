@@ -18,16 +18,24 @@ Open an issue with:
 
 ## Suggesting a metric / sensor type
 
-If your account exposes a metric or sensor type the integration doesn't
-yet handle, open an issue with:
+As of v0.7.0 the integration renders **every metric class in the current
+Aranet Cloud catalog**. If Aranet adds a new one (or your account exposes a
+metric that isn't appearing), open an issue with:
 
-- The metric ID (visible in your diagnostics download under `sensors[*].skills[*].metric`)
-- The metric name (from `GET /api/v1/metrics/{id}` — feel free to paste
-  the JSON response)
-- What unit you expect HA to display
+- The metric ID. Two easy ways to find it: enable debug logging (see the
+  README's *Enabling debug logs*) and look for
+  `Sensor … reports metric id N … — skipping`, or read it from a diagnostics
+  download under `sensors[*].skills[*].metric`.
+- The metric name and unit options (from `GET /api/v1/metrics` — feel free to
+  paste the JSON response).
+- What unit you expect HA to display.
 
-Adding a new metric is usually a one-row change to `METRIC_REGISTRY` in
-`custom_components/aranet_cloud/sensor.py`.
+Adding a metric is usually a one-row change to `METRIC_REGISTRY` in
+`custom_components/aranet_cloud/sensor.py`, plus its unit IDs in
+`UNIT_BY_ID` and an entity-name string. Set a `device_class` **only** when
+every Aranet unit option for the metric is a valid Home Assistant unit for
+that class; otherwise render it as a plain measurement sensor (as Distance,
+Differential pressure, and Radon do).
 
 ## Development setup
 
