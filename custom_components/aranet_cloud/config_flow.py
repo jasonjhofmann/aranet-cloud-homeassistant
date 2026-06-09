@@ -16,10 +16,11 @@ from collections.abc import Mapping
 from typing import Any
 
 import voluptuous as vol
-from aranet_cloud import AranetAuthError, AranetCloudClient, AranetError
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_API_KEY
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+from aranet_cloud import AranetAuthError, AranetCloudClient, AranetError
 
 from .const import DEFAULT_NAME, DOMAIN
 
@@ -60,6 +61,41 @@ class AranetCloudConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user",
+            data_schema=STEP_USER_DATA_SCHEMA,
+            errors=errors,
+        )
+
+    async def async_step_reconfigure(
+        self,
+        user_input: Mapping[str, Any] | None = None,
+    ) -> ConfigFlowResult:
+        """Let the user swap in a new API key without removing the entry.
+
+        We can't guard against repointing at a *different* account here: the
+        config-entry ``unique_id`` is a salted hash of the key itself (Aranet
+        exposes no stable account ID), so a rotated key necessarily produces a
+        different hash. We therefore validate the key and update the entry in
+        place — same behaviour as the reauth path.
+        """
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            api_key = user_input[CONF_API_KEY].strip()
+            try:
+                await self._validate(api_key)
+            except AranetAuthError:
+                errors["base"] = "invalid_auth"
+            except AranetError as err:
+                _LOGGER.warning("Aranet validation failed: %s", err)
+                errors["base"] = "cannot_connect"
+            else:
+                return self.async_update_reload_and_abort(
+                    self._get_reconfigure_entry(),
+                    data_updates={CONF_API_KEY: api_key},
+                )
+
+        return self.async_show_form(
+            step_id="reconfigure",
             data_schema=STEP_USER_DATA_SCHEMA,
             errors=errors,
         )

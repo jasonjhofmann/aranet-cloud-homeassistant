@@ -58,12 +58,40 @@ See `../aranet-cloud/docs/architecture.md` for the API + library design,
 and the integration's `coordinator.py` / `sensor.py` for the HA-side
 patterns.
 
+## Running the integration's checks
+
+This repo has its own test suite and tooling config (`pyproject.toml`,
+`requirements_test.txt`). The tests use
+[`pytest-homeassistant-custom-component`](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component),
+which pulls in a pinned Home Assistant.
+
+```bash
+cd aranet-cloud-homeassistant
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements_test.txt ruff mypy aranet-cloud
+
+ruff check custom_components/ tests/        # lint
+ruff format --check custom_components/ tests/
+mypy custom_components/aranet_cloud/         # strict typing
+pytest --cov=custom_components.aranet_cloud --cov-report=term-missing
+```
+
+The CI workflow (`.github/workflows/ci.yml`) runs the same checks and gates
+coverage at **≥95%** (the suite currently sits at 100%). Test fixtures must
+use **synthetic** device identifiers only — never paste real serials, base
+IDs, or MACs.
+
+> **Note on `mypy`.** The integration package is named `aranet_cloud`, the
+> same as its dependency library. `pyproject.toml` anchors mypy at the repo
+> root (`mypy_path`, `explicit_package_bases`) so `from aranet_cloud import …`
+> resolves to the installed library, not the integration itself. Run mypy
+> from the repo root.
+
 ## Code style
 
-The Python client lib (`aranet-cloud`) ships with `ruff` + `mypy` strict
-configuration. The integration code follows the same conventions; HA's
-core check tools (`hassfest`, `homeassistant.const` linting via ruff)
-should also pass.
+`ruff` + strict `mypy` are configured in `pyproject.toml` for this repo (and
+the `aranet-cloud` client lib follows the same conventions). HA's core check
+tools (`hassfest`, plus the `validate.yml` HACS action) must also pass.
 
 ## License
 

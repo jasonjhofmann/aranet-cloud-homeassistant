@@ -15,6 +15,7 @@ printed on the device — it survives any cloud-side rekeying.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -25,19 +26,28 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.const import EntityCategory
+from homeassistant.core import callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, MANUFACTURER, Metric, unit_for_id
 
+_LOGGER = logging.getLogger(__name__)
+
 if TYPE_CHECKING:
-    from aranet_cloud import Base as AranetBase
-    from aranet_cloud import Sensor as AranetSensor
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+    from aranet_cloud import Base as AranetBase
+    from aranet_cloud import Sensor as AranetSensor
+
     from .coordinator import AranetCoordinator
+
+# All entities read from the shared DataUpdateCoordinator and never write
+# upstream, so there is no per-entity update fan-out to throttle.
+# 0 = unlimited (the coordinator already serialises the single fetch).
+PARALLEL_UPDATES = 0
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -102,7 +112,6 @@ METRIC_REGISTRY: dict[str, AranetMetricDescription] = {
         key="soil_permittivity",
         translation_key="soil_permittivity",
         state_class=SensorStateClass.MEASUREMENT,
-        icon="mdi:water-percent",
         suggested_display_precision=2,
     ),
     Metric.SOIL_ELECTRICAL_CONDUCTIVITY: AranetMetricDescription(
@@ -110,7 +119,6 @@ METRIC_REGISTRY: dict[str, AranetMetricDescription] = {
         key="soil_ec",
         translation_key="soil_ec",
         state_class=SensorStateClass.MEASUREMENT,
-        icon="mdi:flash-triangle",
         suggested_display_precision=3,
     ),
     Metric.PORE_ELECTRICAL_CONDUCTIVITY: AranetMetricDescription(
@@ -118,7 +126,6 @@ METRIC_REGISTRY: dict[str, AranetMetricDescription] = {
         key="pore_ec",
         translation_key="pore_ec",
         state_class=SensorStateClass.MEASUREMENT,
-        icon="mdi:water-percent-alert",
         suggested_display_precision=3,
     ),
     Metric.VAPOUR_PRESSURE_DEFICIT: AranetMetricDescription(
@@ -134,7 +141,6 @@ METRIC_REGISTRY: dict[str, AranetMetricDescription] = {
         key="dli",
         translation_key="day_light_integral",
         state_class=SensorStateClass.MEASUREMENT,
-        icon="mdi:white-balance-sunny",
         suggested_display_precision=2,
     ),
     Metric.RSSI: AranetMetricDescription(
@@ -144,6 +150,8 @@ METRIC_REGISTRY: dict[str, AranetMetricDescription] = {
         device_class=SensorDeviceClass.SIGNAL_STRENGTH,
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
+        # Niche diagnostic — off by default to keep dashboards uncluttered.
+        entity_registry_enabled_default=False,
         suggested_display_precision=0,
     ),
     Metric.BATTERY: AranetMetricDescription(
@@ -163,29 +171,54 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Create entities for every (sensor × active metric) we know how to render."""
+    """Create sensor entities, adding more as new sensors appear (dynamic-devices)."""
     coordinator: AranetCoordinator = entry.runtime_data
-    snapshot = coordinator.data
+    # Tracks the per-entity keys we've already added; pruned to the live set on
+    # each refresh so a sensor that disappears and returns gets a fresh entity.
+    known: set[str] = set()
 
-    entities: list[SensorEntity] = []
+    @callback
+    def _add_entities() -> None:
+        snapshot = coordinator.data
+        desired: set[str] = set()
+        new_entities: list[SensorEntity] = []
 
-    # IMPORTANT ordering: bases must be added BEFORE per-sensor entities so
-    # the base devices exist by the time sensor entities reference them via
-    # ``via_device``. HA deprecated the implicit-creation path; from
-    # 2025.12 onwards the via_device target must already be registered.
-    for base in snapshot.bases.values():
-        entities.append(AranetBaseFirmwareSensor(coordinator, base))
+        # Bases first: their devices back the ``via_device`` link of the
+        # per-sensor entities below (the device itself is registered in
+        # __init__'s device sync, which runs ahead of this listener).
+        for base in snapshot.bases.values():
+            key = f"base_{base.id}"
+            desired.add(key)
+            if key not in known:
+                new_entities.append(AranetBaseFirmwareSensor(coordinator, base))
 
-    for sensor in snapshot.sensors.values():
-        for metric_id in sensor.active_metrics:
-            description = METRIC_REGISTRY.get(metric_id)
-            if description is None:
-                # Unknown metric → silently skip. Phase 3 contract is
-                # forward-compatible with new server-side metrics.
-                continue
-            entities.append(AranetMetricSensor(coordinator, sensor, description))
+        for sensor in snapshot.sensors.values():
+            for metric_id in sensor.active_metrics:
+                description = METRIC_REGISTRY.get(metric_id)
+                if description is None:
+                    # Unknown metric → silently skip; forward-compatible with
+                    # new server-side metrics.
+                    continue
+                key = f"{sensor.serial}_{metric_id}"
+                desired.add(key)
+                if key not in known:
+                    new_entities.append(
+                        AranetMetricSensor(coordinator, sensor, description)
+                    )
 
-    async_add_entities(entities)
+        known.clear()
+        known.update(desired)
+        if new_entities:
+            _LOGGER.debug(
+                "Adding %d sensor entit%s: %s",
+                len(new_entities),
+                "y" if len(new_entities) == 1 else "ies",
+                ", ".join(sorted(e.unique_id for e in new_entities if e.unique_id)),
+            )
+            async_add_entities(new_entities)
+
+    _add_entities()
+    entry.async_on_unload(coordinator.async_add_listener(_add_entities))
 
 
 class AranetMetricSensor(CoordinatorEntity["AranetCoordinator"], SensorEntity):
@@ -210,7 +243,9 @@ class AranetMetricSensor(CoordinatorEntity["AranetCoordinator"], SensorEntity):
     @property
     def native_value(self) -> float | None:
         """Latest reading's value, or ``None`` if no data yet."""
-        reading = self.coordinator.data.reading(self._sensor_id, self.entity_description.metric_id)
+        reading = self.coordinator.data.reading(
+            self._sensor_id, self.entity_description.metric_id
+        )
         return reading.value if reading else None
 
     @property
@@ -223,7 +258,9 @@ class AranetMetricSensor(CoordinatorEntity["AranetCoordinator"], SensorEntity):
         it dynamically here gives users the same units in HA as in the
         Aranet app — no surprise conversions.
         """
-        reading = self.coordinator.data.reading(self._sensor_id, self.entity_description.metric_id)
+        reading = self.coordinator.data.reading(
+            self._sensor_id, self.entity_description.metric_id
+        )
         if reading is None:
             return None
         return unit_for_id(reading.unit) or None
@@ -234,7 +271,9 @@ class AranetMetricSensor(CoordinatorEntity["AranetCoordinator"], SensorEntity):
         if not super().available:
             return False
         return (
-            self.coordinator.data.reading(self._sensor_id, self.entity_description.metric_id)
+            self.coordinator.data.reading(
+                self._sensor_id, self.entity_description.metric_id
+            )
             is not None
         )
 
@@ -245,7 +284,6 @@ class AranetBaseFirmwareSensor(CoordinatorEntity["AranetCoordinator"], SensorEnt
     _attr_has_entity_name = True
     _attr_translation_key = "base_firmware"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_icon = "mdi:chip"
 
     def __init__(self, coordinator: AranetCoordinator, base: AranetBase) -> None:
         super().__init__(coordinator)

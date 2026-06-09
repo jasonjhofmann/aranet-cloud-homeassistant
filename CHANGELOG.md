@@ -8,6 +8,86 @@ versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Nothing yet.
 
+## [0.6.0] — 2026-06-08
+
+Quality scale **Gold → Platinum** (`manifest.json` `"quality_scale": "platinum"`),
+plus a logging and documentation pass.
+
+The three Platinum rules were already met and are now declared (no functional
+change to entities or devices):
+
+- **`async-dependency`** — the `aranet-cloud` library is fully async (aiohttp);
+  the integration never offloads to the executor.
+- **`inject-websession`** — Home Assistant's shared aiohttp session is passed
+  into `AranetCloudClient(session=...)` (the library never closes it).
+- **`strict-typing`** — the integration and the `aranet-cloud` dependency
+  (PEP-561 `py.typed`) both pass `mypy --strict`; CI enforces it.
+
+### Logging
+
+- Level-appropriate, secret-safe logging across the lifecycle: `debug` for
+  setup (entry name, sensor/base counts, poll interval), each poll (counts),
+  and dynamic entity additions (with unique IDs); an `info` line when a stale
+  device is pruned. The API key is never logged at any level. See
+  *README → Troubleshooting → Enabling debug logs*.
+
+### Documentation
+
+- `info.md`: removed the stale "Options panel for tunable poll cadence" line
+  (the OptionsFlow was dropped in 0.4.0); now documents the fixed 60 s
+  cadence, dynamic/stale devices, and the reconfigure flow.
+- `README.md`: added an **Enabling debug logs** section; corrected the
+  "unavailable" tip (Signal strength is disabled by default).
+- `CONTRIBUTING.md`: how to run the integration's own ruff / mypy / pytest
+  checks, plus the mypy package-name-shadowing note.
+
+## [0.5.0] — 2026-06-08
+
+Quality scale **Bronze → Gold** (`manifest.json` `"quality_scale": "gold"`).
+
+### Added
+
+- **Dynamic devices** — sensors that appear in the account after setup gain
+  entities on the next poll, and removed sensors/bases have their devices
+  pruned automatically (**stale devices**).
+- **Reconfigure flow** — update the API key from the integration entry's
+  **⋮ → Reconfigure** action, without removing and re-adding it.
+- **Translated exceptions** — coordinator auth/update failures raise with
+  `translation_key`s (`strings.json` `exceptions`).
+- **Icon translations** (`icons.json`) for the soil, day-light-integral, and
+  base-firmware entities; device-class entities use Home Assistant defaults.
+- **Full pytest test suite** under `tests/` (config / reauth / reconfigure
+  flows, setup/unload, coordinator auth + API-error paths, sensor and
+  binary-sensor platforms, dynamic/stale devices, diagnostics redaction) at
+  100% line coverage.
+- **CI** (`.github/workflows/ci.yml`): ruff lint + format, strict `mypy`,
+  pytest with a ≥95% coverage gate. **HACS + hassfest** validation workflow.
+- **`pyproject.toml`** (ruff / mypy / pytest) and `requirements_test.txt`.
+  The mypy config anchors the package at the repo root so the integration's
+  own `aranet_cloud` package name doesn't shadow the dependency library.
+
+### Changed
+
+- **Signal-strength (RSSI)** sensor is now **disabled by default** (niche
+  diagnostic). Enable it per entity if you want it.
+- `PARALLEL_UPDATES = 0` declared on both platforms.
+- Entity icons moved from code into `icons.json`.
+
+### Fixed (docs)
+
+- README **"Configuration"** no longer describes a polling-interval options
+  flow (removed in 0.4.0); added **Use cases**, **Example automations**,
+  **How data is updated**, **Known limitations**, and **Removing the
+  integration** sections.
+- README **License/branding** now states brand assets are bundled in-repo and
+  served by HA's Brands Proxy (no `home-assistant/brands` PR — that repo no
+  longer accepts custom-integration submissions).
+
+### Internal
+
+- Removed the dead `options` / `scan_interval` translation blocks left over
+  from the 0.4.0 OptionsFlow removal.
+
 ## [0.4.0] — 2026-05-27
 
 ### Removed (breaking)

@@ -16,25 +16,34 @@ matching metric. Reserved for a future revision.
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
 )
+from homeassistant.core import callback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, Metric
 from .sensor import _base_device_info, _sensor_device_info
 
+_LOGGER = logging.getLogger(__name__)
+
 if TYPE_CHECKING:
-    from aranet_cloud import Base as AranetBase
-    from aranet_cloud import Sensor as AranetSensor
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+    from aranet_cloud import Base as AranetBase
+    from aranet_cloud import Sensor as AranetSensor
+
     from .coordinator import AranetCoordinator
+
+# Coordinator-backed, read-only entities — no per-entity update fan-out.
+# 0 = unlimited (the coordinator already serialises the single fetch).
+PARALLEL_UPDATES = 0
 
 
 async def async_setup_entry(
@@ -42,21 +51,43 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Create one low-battery binary_sensor per battery-reporting sensor +
-    one offline binary_sensor per base."""
+    """Create alarm binary_sensors, adding more as sensors/bases appear."""
     coordinator: AranetCoordinator = entry.runtime_data
-    snapshot = coordinator.data
+    known: set[str] = set()
 
-    entities: list[BinarySensorEntity] = []
+    @callback
+    def _add_entities() -> None:
+        snapshot = coordinator.data
+        desired: set[str] = set()
+        new_entities: list[BinarySensorEntity] = []
 
-    for sensor in snapshot.sensors.values():
-        if Metric.BATTERY in sensor.active_metrics:
-            entities.append(AranetLowBatteryBinarySensor(coordinator, sensor))
+        for sensor in snapshot.sensors.values():
+            if Metric.BATTERY not in sensor.active_metrics:
+                continue
+            key = f"low_battery_{sensor.serial}"
+            desired.add(key)
+            if key not in known:
+                new_entities.append(AranetLowBatteryBinarySensor(coordinator, sensor))
 
-    for base in snapshot.bases.values():
-        entities.append(AranetBaseOfflineBinarySensor(coordinator, base))
+        for base in snapshot.bases.values():
+            key = f"offline_{base.id}"
+            desired.add(key)
+            if key not in known:
+                new_entities.append(AranetBaseOfflineBinarySensor(coordinator, base))
 
-    async_add_entities(entities)
+        known.clear()
+        known.update(desired)
+        if new_entities:
+            _LOGGER.debug(
+                "Adding %d binary_sensor entit%s: %s",
+                len(new_entities),
+                "y" if len(new_entities) == 1 else "ies",
+                ", ".join(sorted(e.unique_id for e in new_entities if e.unique_id)),
+            )
+            async_add_entities(new_entities)
+
+    _add_entities()
+    entry.async_on_unload(coordinator.async_add_listener(_add_entities))
 
 
 class AranetLowBatteryBinarySensor(

@@ -15,11 +15,12 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from aranet_cloud import AranetAuthError, AranetCloudClient, AranetError
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+
+from aranet_cloud import AranetAuthError, AranetCloudClient, AranetError
 
 from .const import DEFAULT_SCAN_INTERVAL, DOMAIN
 
@@ -105,9 +106,16 @@ class AranetCoordinator(DataUpdateCoordinator[AranetSnapshot]):
             telemetry, _tlinks = await self._client.get_telemetry_last()
             alarms = await self._client.get_alarms_actual()
         except AranetAuthError as err:
-            raise ConfigEntryAuthFailed(str(err)) from err
+            raise ConfigEntryAuthFailed(
+                translation_domain=DOMAIN,
+                translation_key="auth_failed",
+            ) from err
         except AranetError as err:
-            raise UpdateFailed(f"Aranet API error: {err}") from err
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="update_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
 
         snapshot = AranetSnapshot(
             sensors={s.id: s for s in sensors},
@@ -117,7 +125,8 @@ class AranetCoordinator(DataUpdateCoordinator[AranetSnapshot]):
             links=links,
         )
         _LOGGER.debug(
-            "Snapshot: %d sensors, %d bases, %d readings, %d active alarms",
+            "Polled Aranet Cloud: %d sensor(s), %d base(s), %d reading(s), "
+            "%d active alarm(s)",
             len(snapshot.sensors),
             len(snapshot.bases),
             len(snapshot.readings),
