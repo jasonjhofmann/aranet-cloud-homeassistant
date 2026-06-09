@@ -293,6 +293,10 @@ At `debug` you'll see, in `Settings → System → Logs`:
   cycle, so you can confirm data is flowing and how much.
 - **Entity changes** — `Adding N sensor entit…: <unique_id>, …` whenever a
   new sensor or metric appears.
+- **Unrendered metrics** — `Sensor X reports metric id N … — skipping` (once
+  per sensor/metric) if Aranet ever reports a metric this integration doesn't
+  render yet. That's your cue to [open an issue](#reporting-issues) — adding it
+  is a one-row change.
 - **Device cleanup** — a one-line `INFO` (no debug needed) when a device is
   removed because the account stopped reporting it.
 

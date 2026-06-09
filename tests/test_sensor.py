@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from unittest.mock import MagicMock
 
 import pytest
@@ -146,9 +147,11 @@ async def test_specialty_metrics_render(
 
 
 async def test_unknown_metric_is_skipped(
-    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A sensor skill for a metric we don't model produces no entity."""
+    """A metric we don't model produces no entity, and is logged once at debug."""
     from aranet_cloud import Sensor, Skill
 
     odd = Sensor(
@@ -174,10 +177,12 @@ async def test_unknown_metric_is_skipped(
         ],
         telemetry=[],
     )
-    await setup_integration(hass, mock_config_entry, client)
+    with caplog.at_level(logging.DEBUG, logger="custom_components.aranet_cloud"):
+        await setup_integration(hass, mock_config_entry, client)
 
     ent_reg = er.async_get(hass)
     # The modelled CO2 metric exists...
     assert ent_reg.async_get_entity_id("sensor", DOMAIN, _uid("0ZZ99", data.M_CO2))
-    # ...but the unknown metric was silently skipped.
+    # ...but the unknown metric was skipped — and that skip is logged.
     assert ent_reg.async_get_entity_id("sensor", DOMAIN, _uid("0ZZ99", "9999")) is None
+    assert "metric id 9999" in caplog.text

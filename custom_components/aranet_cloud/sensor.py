@@ -230,6 +230,9 @@ async def async_setup_entry(
     # Tracks the per-entity keys we've already added; pruned to the live set on
     # each refresh so a sensor that disappears and returns gets a fresh entity.
     known: set[str] = set()
+    # Remembers which (sensor, metric) skips we've already logged, so the
+    # debug line below fires once rather than every coordinator cycle.
+    logged_skips: set[str] = set()
 
     @callback
     def _add_entities() -> None:
@@ -250,8 +253,18 @@ async def async_setup_entry(
             for metric_id in sensor.active_metrics:
                 description = METRIC_REGISTRY.get(metric_id)
                 if description is None:
-                    # Unknown metric → silently skip; forward-compatible with
-                    # new server-side metrics.
+                    # Metric we don't render yet → skip (forward-compatible with
+                    # new Aranet metrics). Log once so it's discoverable: the
+                    # fix is a one-row addition to METRIC_REGISTRY.
+                    skip_key = f"{sensor.serial}_{metric_id}"
+                    if skip_key not in logged_skips:
+                        logged_skips.add(skip_key)
+                        _LOGGER.debug(
+                            "Sensor %s reports metric id %s, which this "
+                            "integration doesn't render yet — skipping",
+                            sensor.serial,
+                            metric_id,
+                        )
                     continue
                 key = f"{sensor.serial}_{metric_id}"
                 desired.add(key)

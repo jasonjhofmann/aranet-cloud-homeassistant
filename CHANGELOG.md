@@ -25,6 +25,13 @@ Nothing yet.
   - Ground truth sourced from the live `/api/metrics` + `/api/user/units`
     responses; the new unit IDs are mapped in `UNIT_BY_ID`.
 
+### Logging
+
+- The previously-silent "metric not rendered" path now logs once per
+  sensor/metric at `debug` (`Sensor … reports metric id N … — skipping`), so a
+  new Aranet metric is discoverable rather than invisible. Documented in the
+  README *Enabling debug logs* and CONTRIBUTING sections.
+
 ### Fixed (docs)
 
 - Corrected two **overclaims** in the hardware/metric docs (README + info.md):
