@@ -36,6 +36,17 @@ def auto_enable_custom_integrations(
     """Make HA load the integration from ``custom_components/`` in every test."""
 
 
+@pytest.fixture(autouse=True)
+def frozen_time(freezer) -> None:
+    """Freeze the clock at the fixtures' FIXED_TIME.
+
+    Entity availability now includes reading staleness (sensor.py's
+    READING_MAX_AGE); pinning "now" to the fixtures' timestamp keeps the
+    default readings fresh and the tests wall-clock independent.
+    """
+    freezer.move_to(data.FIXED_TIME)
+
+
 def build_mock_client(
     *,
     sensors: list | None = None,

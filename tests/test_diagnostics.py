@@ -12,7 +12,8 @@ from custom_components.aranet_cloud.diagnostics import (
     async_get_config_entry_diagnostics,
 )
 
-from .conftest import TEST_API_KEY
+from . import fixtures_data as data
+from .conftest import TEST_API_KEY, build_mock_client, setup_integration
 
 
 async def test_diagnostics_redacts_and_counts(
@@ -59,3 +60,18 @@ def test_redact_set_covers_raw_payload_keys() -> None:
         assert out[key] == "**REDACTED**"
     assert out["nested"]["location"] == "**REDACTED**"
     assert out["name"] == "Aranet4 0ABCD"
+
+
+async def test_base_config_is_redacted(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """Base.config (enterprise gateway configuration) never leaks into the dump."""
+    base = data.build_base()
+    base.config = {"wifi": {"ssid": "HomeNet", "psk": "hunter2"}}
+    client = build_mock_client(bases=[base])
+    await setup_integration(hass, mock_config_entry, client)
+
+    result = await async_get_config_entry_diagnostics(hass, mock_config_entry)
+
+    assert result["bases"][0]["config"] == "**REDACTED**"
+    assert "hunter2" not in json.dumps(result)

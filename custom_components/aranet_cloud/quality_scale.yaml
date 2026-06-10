@@ -38,7 +38,13 @@ rules:
   config-entry-unloading: done
   docs-configuration-parameters: done
   docs-installation-parameters: done
-  entity-unavailable: done
+  entity-unavailable:
+    status: done
+    comment: >-
+      Entities are unavailable when the coordinator's last refresh failed,
+      when no reading exists for the (sensor x metric) pair, and when the
+      latest reading's timestamp is older than READING_MAX_AGE (sensor.py)
+      — a dead sensor stops reporting its last value as live.
   integration-owner: done
   log-when-unavailable: done
   parallel-updates: done

@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.8.0 — 2026-06-10
+
+Hardening release from a code audit.
+
+- **Stale-device pruning got hysteresis.** A device is now removed only
+  after it has been absent from **3 consecutive** successful refreshes,
+  and an empty snapshot (no sensors and no bases — how a cloud hiccup can
+  present) never prunes at all. Previously a single empty-but-successful
+  response deleted every device and its entity-registry entries.
+- **API-key rotation keeps duplicate-account protection.** Reauth and
+  reconfigure now update the entry's `unique_id` (the salted key hash)
+  alongside the key. Previously the entry kept the old key's hash, so
+  re-adding the account with the rotated key created a duplicate entry
+  with colliding devices.
+- **Entities now resolve readings via the permanent serial.** The
+  cloud-numeric sensor id is looked up from the snapshot on every update
+  instead of being bound at entity construction — a sensor deleted and
+  re-added in the cloud (new numeric id, same serial) keeps reporting.
+- **Device classes are validated against the delivered unit.** Account
+  display preferences can deliver units HA's device classes don't accept
+  (`%RH` for humidity, `atm` for atmospheric pressure, `V` for battery,
+  `dBW` for signal strength, fractions for moisture). Invalid combos now
+  degrade gracefully: a better-fitting class where one exists (battery
+  voltage in `V`/`mV` → `voltage`), otherwise no device class — instead
+  of per-entity errors and broken long-term statistics. Exhaustively
+  tested across every unit id in `UNIT_BY_ID`.
+- **Entities go unavailable when their reading goes stale.** A reading
+  older than 20 minutes (2× the coarsest 10-minute transmit interval the
+  hardware offers) marks the entity unavailable — a dead sensor no longer
+  reports its last value as live forever.
+- **Diagnostics redact `Base.config`** (enterprise gateway configuration).
+- **Removed the false "stored encrypted" claim** from the API-key help
+  text — Home Assistant stores config-entry data as plain JSON in
+  `.storage`. The accurate half (the key is never written back to your
+  Aranet Cloud account) remains.
+
 ## 0.7.2 — 2026-06-10
 
 - Diagnostics redact set now pre-lists sensitive keys from Aranet

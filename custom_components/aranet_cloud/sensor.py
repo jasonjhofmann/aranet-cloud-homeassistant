@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from homeassistant.components.sensor import (
@@ -25,10 +26,12 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
+from homeassistant.components.sensor.const import DEVICE_CLASS_UNITS
 from homeassistant.const import EntityCategory
 from homeassistant.core import callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, MANUFACTURER, Metric, unit_for_id
 
@@ -40,6 +43,7 @@ if TYPE_CHECKING:
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
     from aranet_cloud import Base as AranetBase
+    from aranet_cloud import Reading
     from aranet_cloud import Sensor as AranetSensor
 
     from .coordinator import AranetCoordinator
@@ -48,6 +52,50 @@ if TYPE_CHECKING:
 # upstream, so there is no per-entity update fan-out to throttle.
 # 0 = unlimited (the coordinator already serialises the single fetch).
 PARALLEL_UPDATES = 0
+
+# Staleness threshold for entity availability. Aranet sensors transmit to
+# the base at a configurable interval of 1/2/5/10 minutes (10 min is the
+# coarsest the hardware offers); 2x that cadence gives a missed-cycle margin
+# while still flagging a dead sensor within ~20 minutes instead of reporting
+# its last value as live forever.
+READING_MAX_AGE = timedelta(minutes=20)
+
+# When the registry's declared device class is invalid for the unit actually
+# delivered by the account's display preferences, prefer one of these
+# unit-keyed classes over dropping the class entirely (e.g. battery voltage
+# telemetry in V is a perfectly good VOLTAGE sensor, just not a BATTERY %).
+_DEVICE_CLASS_BY_UNIT: dict[str, SensorDeviceClass] = {
+    "V": SensorDeviceClass.VOLTAGE,
+    "mV": SensorDeviceClass.VOLTAGE,
+}
+
+
+def _effective_device_class(
+    declared: SensorDeviceClass | None, unit: str | None
+) -> SensorDeviceClass | None:
+    """Validate ``declared`` against the reading's actual unit.
+
+    Aranet account display preferences flow into the API response, so the
+    same metric can arrive in units HA's device classes don't accept
+    (``%RH`` for HUMIDITY, ``atm`` for ATMOSPHERIC_PRESSURE, ``V`` for
+    BATTERY, ``dBW`` for SIGNAL_STRENGTH, fractions for MOISTURE, ...).
+    Emitting such a combo is a per-entity error in HA and breaks long-term
+    statistics. Resolution order:
+
+    1. ``declared`` if the unit is acceptable for it (or HA imposes no
+       unit restriction on that class),
+    2. a better-fitting class from :data:`_DEVICE_CLASS_BY_UNIT`,
+    3. no device class at all (plain measurement sensor).
+    """
+    if declared is not None:
+        allowed = DEVICE_CLASS_UNITS.get(declared)
+        if allowed is None or unit in allowed:
+            return declared
+    if unit is not None:
+        better = _DEVICE_CLASS_BY_UNIT.get(unit)
+        if better is not None and unit in DEVICE_CLASS_UNITS.get(better, set()):
+            return better
+    return None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -164,8 +212,11 @@ METRIC_REGISTRY: dict[str, AranetMetricDescription] = {
         suggested_display_precision=0,
     ),
     # --- Additional Aranet Cloud catalog metrics (HAR-verified 2026-06-09) ---
-    # These appear on specialty / Pro / transmitter sensors. Device classes are
-    # set only where every Aranet unit option is a valid HA unit for the class.
+    # These appear on specialty / Pro / transmitter sensors. Declared device
+    # classes are additionally validated per-reading against the delivered
+    # unit (see _effective_device_class) — an account preference for a unit
+    # HA doesn't accept downgrades the class at runtime instead of emitting
+    # an invalid combo.
     Metric.VOLTAGE: AranetMetricDescription(
         metric_id=Metric.VOLTAGE,
         key="voltage",
@@ -302,17 +353,23 @@ class AranetMetricSensor(CoordinatorEntity["AranetCoordinator"], SensorEntity):
     ) -> None:
         super().__init__(coordinator)
         self.entity_description = description
-        self._sensor_id = sensor.id
+        # Only the permanent hex serial is bound at construction. The cloud-
+        # numeric sensor ID is resolved through the snapshot on every lookup
+        # (it changes if the sensor is deleted and re-added in the cloud).
         self._serial = sensor.serial
         self._attr_unique_id = f"{DOMAIN}_{sensor.serial}_{description.metric_id}"
         self._attr_device_info = _sensor_device_info(sensor)
 
+    def _reading(self) -> Reading | None:
+        """Current reading for this entity, resolved via the serial."""
+        return self.coordinator.data.reading_for_serial(
+            self._serial, self.entity_description.metric_id
+        )
+
     @property
     def native_value(self) -> float | None:
         """Latest reading's value, or ``None`` if no data yet."""
-        reading = self.coordinator.data.reading(
-            self._sensor_id, self.entity_description.metric_id
-        )
+        reading = self._reading()
         return reading.value if reading else None
 
     @property
@@ -325,24 +382,43 @@ class AranetMetricSensor(CoordinatorEntity["AranetCoordinator"], SensorEntity):
         it dynamically here gives users the same units in HA as in the
         Aranet app — no surprise conversions.
         """
-        reading = self.coordinator.data.reading(
-            self._sensor_id, self.entity_description.metric_id
-        )
+        reading = self._reading()
         if reading is None:
             return None
         return unit_for_id(reading.unit) or None
 
     @property
+    def device_class(self) -> SensorDeviceClass | None:
+        """Declared device class, validated against the delivered unit.
+
+        See :func:`_effective_device_class` — account display preferences
+        can deliver units the declared class doesn't accept.
+        """
+        reading = self._reading()
+        if reading is None:
+            return self.entity_description.device_class
+        return _effective_device_class(
+            self.entity_description.device_class, unit_for_id(reading.unit) or None
+        )
+
+    @property
     def available(self) -> bool:
-        """Available only when the coordinator's last fetch produced a reading."""
+        """Available when the last fetch produced a reading that is fresh.
+
+        A reading older than :data:`READING_MAX_AGE` means the physical
+        sensor has stopped reporting (dead battery, out of range) even
+        though the cloud keeps serving its last value — surface that as
+        unavailable rather than presenting stale data as live. Readings
+        without a timestamp are given the benefit of the doubt.
+        """
         if not super().available:
             return False
-        return (
-            self.coordinator.data.reading(
-                self._sensor_id, self.entity_description.metric_id
-            )
-            is not None
-        )
+        reading = self._reading()
+        if reading is None:
+            return False
+        if reading.time is None:
+            return True
+        return (dt_util.utcnow() - reading.time) <= READING_MAX_AGE
 
 
 class AranetBaseFirmwareSensor(CoordinatorEntity["AranetCoordinator"], SensorEntity):

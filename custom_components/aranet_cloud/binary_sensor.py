@@ -101,13 +101,17 @@ class AranetLowBatteryBinarySensor(
 
     def __init__(self, coordinator: AranetCoordinator, sensor: AranetSensor) -> None:
         super().__init__(coordinator)
-        self._sensor_id = sensor.id
+        # Bind the permanent serial, not the cloud-numeric ID — the latter
+        # changes if the sensor is deleted and re-added in the cloud.
+        self._serial = sensor.serial
         self._attr_unique_id = f"{DOMAIN}_{sensor.serial}_low_battery"
         self._attr_device_info = _sensor_device_info(sensor)
 
     @property
     def is_on(self) -> bool:
-        alarm = self.coordinator.data.active_alarm(self._sensor_id, Metric.BATTERY)
+        alarm = self.coordinator.data.active_alarm_for_serial(
+            self._serial, Metric.BATTERY
+        )
         return alarm is not None
 
 

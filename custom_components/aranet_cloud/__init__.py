@@ -40,6 +40,13 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BINARY_SENSOR]
 
+# A device must be absent from this many CONSECUTIVE successful refreshes
+# before it is pruned from the registry. One cloud hiccup (or an empty-but-
+# successful response) must never wipe the fleet's devices and entity
+# registry entries — with the default 60 s poll this means a sensor has to
+# be gone for ~3 minutes before HA forgets it.
+STALE_DEVICE_THRESHOLD = 3
+
 # Typed alias — coordinator stored on entry.runtime_data per HA's modern pattern.
 type AranetConfigEntry = ConfigEntry[AranetCoordinator]
 
@@ -69,10 +76,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: AranetConfigEntry) -> bo
     # later (dynamic-devices) and prune devices the cloud no longer reports
     # (stale-devices). Registered before the platforms forward so it runs ahead
     # of the platform add-entity listeners on each coordinator update.
+    # Consecutive-absence counter per device-registry ID, feeding the
+    # stale-device hysteresis (see _async_remove_stale_devices).
+    absence_counts: dict[str, int] = {}
+
     @callback
     def _sync_devices() -> None:
         _register_base_devices(hass, entry, coordinator)
-        _async_remove_stale_devices(hass, entry, coordinator)
+        _async_remove_stale_devices(hass, entry, coordinator, absence_counts)
 
     entry.async_on_unload(coordinator.async_add_listener(_sync_devices))
 
@@ -105,10 +116,30 @@ def _register_base_devices(
 
 @callback
 def _async_remove_stale_devices(
-    hass: HomeAssistant, entry: AranetConfigEntry, coordinator: AranetCoordinator
+    hass: HomeAssistant,
+    entry: AranetConfigEntry,
+    coordinator: AranetCoordinator,
+    absence_counts: dict[str, int],
 ) -> None:
-    """Drop devices for sensors/bases the cloud no longer reports."""
+    """Drop devices for sensors/bases the cloud no longer reports.
+
+    Guarded two ways so a transient cloud problem can never wipe the fleet:
+
+    * An *empty* snapshot (no sensors AND no bases) is treated as suspect —
+      the API returns a successful empty body on some hiccups — and never
+      prunes anything.
+    * A device must be absent for :data:`STALE_DEVICE_THRESHOLD` consecutive
+      successful refreshes before it is removed. Reappearing resets its
+      counter.
+    """
     snapshot = coordinator.data
+    if not snapshot.sensors and not snapshot.bases:
+        _LOGGER.debug(
+            "Snapshot is empty — skipping stale-device pruning (a cloud "
+            "hiccup can present as a successful empty fleet)"
+        )
+        return
+
     current: set[tuple[str, str]] = {
         (DOMAIN, f"base_{base.id}") for base in snapshot.bases.values()
     }
@@ -116,12 +147,24 @@ def _async_remove_stale_devices(
 
     device_reg = dr.async_get(hass)
     for device in dr.async_entries_for_config_entry(device_reg, entry.entry_id):
-        if device.identifiers.isdisjoint(current):
-            _LOGGER.info(
-                "Removing device '%s' — it is no longer reported by the "
-                "Aranet Cloud account",
+        if not device.identifiers.isdisjoint(current):
+            absence_counts.pop(device.id, None)
+            continue
+        misses = absence_counts.get(device.id, 0) + 1
+        absence_counts[device.id] = misses
+        if misses < STALE_DEVICE_THRESHOLD:
+            _LOGGER.debug(
+                "Device '%s' absent from refresh %d/%d — deferring removal",
                 device.name_by_user or device.name or device.id,
+                misses,
+                STALE_DEVICE_THRESHOLD,
             )
-            device_reg.async_update_device(
-                device.id, remove_config_entry_id=entry.entry_id
-            )
+            continue
+        absence_counts.pop(device.id, None)
+        _LOGGER.info(
+            "Removing device '%s' — it has not been reported by the "
+            "Aranet Cloud account for %d consecutive refreshes",
+            device.name_by_user or device.name or device.id,
+            STALE_DEVICE_THRESHOLD,
+        )
+        device_reg.async_update_device(device.id, remove_config_entry_id=entry.entry_id)
