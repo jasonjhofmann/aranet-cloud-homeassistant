@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.2 — 2026-06-10
+
+- Diagnostics redact set now pre-lists sensitive keys from Aranet
+  Cloud's raw API payloads (location/region/notes) and request context
+  (Authorization/apiKey) that the dump never includes today — if a
+  future revision attaches raw data, they scrub automatically.
+  Regression-tested.
+
 ## 0.7.1 — 2026-06-10
 
 Observability gap-fill (no functional changes).
