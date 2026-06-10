@@ -28,7 +28,24 @@ if TYPE_CHECKING:
 
     from .coordinator import AranetCoordinator
 
-REDACT = {CONF_API_KEY, "unique_id"}
+# Keys redacted at any depth. Beyond what the dump contains today, this
+# pre-lists sensitive keys from Aranet Cloud's RAW API payloads (inventoried
+# from the aranet-cloud client's parsers) that we never include today but
+# would need scrubbing if a future revision attached a raw payload or
+# request context to the dump. Unused keys cost nothing.
+REDACT = {
+    # Present in today's dump
+    CONF_API_KEY,
+    "unique_id",
+    # Raw-payload keys (hypothetical future inclusion)
+    "location",  # free-text sensor placement
+    "region",  # account region
+    "note",
+    "notes",  # user free-text can contain anything
+    # Request context (hypothetical future inclusion)
+    "Authorization",
+    "apiKey",
+}
 
 
 def _serialise(obj: Any) -> Any:

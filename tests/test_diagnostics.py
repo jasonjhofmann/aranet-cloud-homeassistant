@@ -35,3 +35,27 @@ async def test_diagnostics_redacts_and_counts(
 
     # The raw key must not survive anywhere in the serialised payload.
     assert TEST_API_KEY not in json.dumps(result)
+
+
+def test_redact_set_covers_raw_payload_keys() -> None:
+    """Future-proofing: raw Aranet Cloud payload keys scrub even though
+    today's dump never includes raw payloads (guards against drift)."""
+    from homeassistant.components.diagnostics import async_redact_data
+
+    from custom_components.aranet_cloud.diagnostics import REDACT
+
+    hypothetical_raw = {
+        "location": "Primary Bedroom",
+        "region": "us-1",
+        "note": "behind the headboard",
+        "notes": ["spare key under mat"],
+        "Authorization": "Bearer abc",
+        "apiKey": "abc",
+        "nested": {"location": "Kitchen"},
+        "name": "Aranet4 0ABCD",  # non-sensitive keys survive
+    }
+    out = async_redact_data(hypothetical_raw, REDACT)
+    for key in ("location", "region", "note", "notes", "Authorization", "apiKey"):
+        assert out[key] == "**REDACTED**"
+    assert out["nested"]["location"] == "**REDACTED**"
+    assert out["name"] == "Aranet4 0ABCD"
