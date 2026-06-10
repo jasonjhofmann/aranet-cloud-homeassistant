@@ -11,3 +11,4 @@ htmlcov/
 coverage.xml
 .DS_Store
 *.swp
+uv.lock
