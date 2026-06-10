@@ -8,7 +8,7 @@ on:
 permissions: {}
 
 jobs:
-  lint-and-test:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -40,9 +40,36 @@ jobs:
             --with "aranet-cloud==0.1.0" \
             mypy custom_components/aranet_cloud/
 
+  # Guards the declared support floor (hacs.json: HA 2025.1 = Python 3.12).
+  # A 3.14-only construct slipping in (e.g. unparenthesized ``except A, B:``)
+  # fails here instead of as a SyntaxError on users' installs.
+  syntax-floor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Compile on Python 3.12 (support floor)
+        run: |
+          uv run --python 3.12 --no-project \
+            python -m compileall -q custom_components/
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
       - name: Pytest (with coverage gate)
         run: |
-          uv run --python 3.14 \
+          uv run --python ${{ matrix.python-version }} \
             --with pytest-homeassistant-custom-component \
             --with pytest-cov \
             --with "aranet-cloud==0.1.0" \

@@ -26,7 +26,18 @@ versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed (tooling/CI only — no integration changes)
+
+- Ruff `target-version` lowered from `py314` to `py312` — the oldest
+  interpreter implied by the declared HA minimum (hacs.json
+  `homeassistant: 2025.1.0` ran Python 3.12). Under `py314`,
+  `ruff format` rewrites `except (A, B):` into the 3.14-only
+  unparenthesized form (PEP 758) — the SyntaxError regression that
+  shipped in visiblair-homeassistant 0.6.2. Mypy stays on 3.14 because
+  it parses the installed current Home Assistant source.
+- CI restructured: `lint` (ruff + mypy on Python 3.14), `syntax-floor`
+  (`compileall` on Python 3.12), and `test` (pytest matrix on 3.13 and
+  3.14; coverage gate unchanged).
 
 ## [0.7.0] — 2026-06-09
 
