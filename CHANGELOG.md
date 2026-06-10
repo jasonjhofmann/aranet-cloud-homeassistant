@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.1 — 2026-06-10
+
+Observability gap-fill (no functional changes).
+
+- `loggers: ["aranet_cloud"]` in the manifest — the integration page's
+  **Enable debug logging** toggle now captures the client library's
+  retry/timeout logging too.
+- Debug-logging instructions in README (Reporting issues).
+- `data_description` help text on the reauth and reconfigure key fields.
+- CI/tooling moved to Python 3.14 (latest Home Assistant test harness
+  requires it; pinning 3.13 silently tested against months-old HA).
+
 All notable changes to **aranet-cloud-homeassistant** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).

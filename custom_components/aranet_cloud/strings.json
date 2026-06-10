@@ -16,6 +16,9 @@
         "description": "The Aranet Cloud rejected the saved API key. Generate a new one and paste it below.",
         "data": {
           "api_key": "API key"
+        },
+        "data_description": {
+          "api_key": "The replacement key is validated against Aranet Cloud before being saved."
         }
       },
       "reconfigure": {
@@ -23,6 +26,9 @@
         "description": "Update the Aranet Cloud API key used for this account. The new key must belong to the same account.",
         "data": {
           "api_key": "API key"
+        },
+        "data_description": {
+          "api_key": "The new key is validated before being saved and takes effect immediately for all sensors."
         }
       }
     },
@@ -46,29 +52,71 @@
   },
   "entity": {
     "sensor": {
-      "temperature": { "name": "Temperature" },
-      "humidity": { "name": "Humidity" },
-      "co2": { "name": "CO₂" },
-      "atmospheric_pressure": { "name": "Atmospheric pressure" },
-      "soil_moisture": { "name": "Soil moisture" },
-      "soil_permittivity": { "name": "Soil permittivity" },
-      "soil_ec": { "name": "Soil EC" },
-      "pore_ec": { "name": "Pore EC" },
-      "vapour_pressure_deficit": { "name": "Vapour-pressure deficit" },
-      "day_light_integral": { "name": "Day light integral" },
-      "voltage": { "name": "Voltage" },
-      "weight": { "name": "Weight" },
-      "distance": { "name": "Distance" },
-      "differential_pressure": { "name": "Differential pressure" },
-      "radon": { "name": "Radon" },
-      "fraction": { "name": "Fraction" },
-      "rssi": { "name": "Signal strength" },
-      "battery": { "name": "Battery" },
-      "base_firmware": { "name": "Firmware" }
+      "temperature": {
+        "name": "Temperature"
+      },
+      "humidity": {
+        "name": "Humidity"
+      },
+      "co2": {
+        "name": "CO₂"
+      },
+      "atmospheric_pressure": {
+        "name": "Atmospheric pressure"
+      },
+      "soil_moisture": {
+        "name": "Soil moisture"
+      },
+      "soil_permittivity": {
+        "name": "Soil permittivity"
+      },
+      "soil_ec": {
+        "name": "Soil EC"
+      },
+      "pore_ec": {
+        "name": "Pore EC"
+      },
+      "vapour_pressure_deficit": {
+        "name": "Vapour-pressure deficit"
+      },
+      "day_light_integral": {
+        "name": "Day light integral"
+      },
+      "voltage": {
+        "name": "Voltage"
+      },
+      "weight": {
+        "name": "Weight"
+      },
+      "distance": {
+        "name": "Distance"
+      },
+      "differential_pressure": {
+        "name": "Differential pressure"
+      },
+      "radon": {
+        "name": "Radon"
+      },
+      "fraction": {
+        "name": "Fraction"
+      },
+      "rssi": {
+        "name": "Signal strength"
+      },
+      "battery": {
+        "name": "Battery"
+      },
+      "base_firmware": {
+        "name": "Firmware"
+      }
     },
     "binary_sensor": {
-      "low_battery": { "name": "Low battery" },
-      "base_offline": { "name": "Base station" }
+      "low_battery": {
+        "name": "Low battery"
+      },
+      "base_offline": {
+        "name": "Base station"
+      }
     }
   }
 }

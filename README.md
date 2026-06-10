@@ -310,6 +310,20 @@ Use the GitHub issue tracker linked from this README. Please include the
 diagnostics download — the API key is redacted before the snapshot is
 generated, so it's safe to share.
 
+For intermittent problems, also enable debug logging (integration page →
+⋮ → **Enable debug logging**, which now covers the `aranet-cloud` client
+library too, or via YAML):
+
+```yaml
+logger:
+  logs:
+    custom_components.aranet_cloud: debug
+    aranet_cloud: debug
+```
+
+Debug logs include per-poll counts (sensors/bases/readings/alarms) and the
+client library's retry/timeout attempts; credentials never appear in logs.
+
 ## Architecture
 
 - Backed by [`aranet-cloud`](https://github.com/jasonjhofmann/aranet-cloud),

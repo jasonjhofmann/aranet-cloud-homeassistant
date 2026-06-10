@@ -4,7 +4,7 @@
 
 [tool.ruff]
 line-length = 88
-target-version = "py313"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = [
@@ -30,7 +30,7 @@ ignore = [
 "tests/*" = ["B011"]  # pytest uses assert intentionally
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.14"
 strict = true
 warn_unreachable = true
 # The integration package is literally named ``aranet_cloud`` — the same top-
