@@ -4,7 +4,11 @@
 
 [tool.ruff]
 line-length = 88
-target-version = "py314"
+# Must match the OLDEST supported interpreter (HA 2025.1 = Python 3.12), not
+# the newest: under py314, ruff format rewrites ``except (A, B):`` into the
+# 3.14-only unparenthesized form — the SyntaxError regression that shipped in
+# visiblair-homeassistant 0.6.2.
+target-version = "py312"
 
 [tool.ruff.lint]
 select = [
@@ -30,6 +34,9 @@ ignore = [
 "tests/*" = ["B011"]  # pytest uses assert intentionally
 
 [tool.mypy]
+# Stays at 3.14 (NOT the support floor): mypy parses the installed current
+# Home Assistant source, which itself uses 3.14-only syntax. The floor is
+# enforced by ruff's target-version and the CI compileall/pytest matrix.
 python_version = "3.14"
 strict = true
 warn_unreachable = true
