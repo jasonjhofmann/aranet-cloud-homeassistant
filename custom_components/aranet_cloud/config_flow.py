@@ -89,9 +89,13 @@ class AranetCloudConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.warning("Aranet validation failed: %s", err)
                 errors["base"] = "cannot_connect"
             else:
+                # The unique_id is a salted hash of the key, so a rotated key
+                # must re-derive it — otherwise duplicate-account protection
+                # tests new setups against the OLD key's hash forever.
                 return self.async_update_reload_and_abort(
                     self._get_reconfigure_entry(),
                     data_updates={CONF_API_KEY: api_key},
+                    unique_id=_account_id(api_key),
                 )
 
         return self.async_show_form(
@@ -123,9 +127,13 @@ class AranetCloudConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "cannot_connect"
             else:
                 existing = self._get_reauth_entry()
+                # Keep the unique_id in step with the rotated key (see the
+                # reconfigure step) so adding the same account again still
+                # aborts as already_configured.
                 return self.async_update_reload_and_abort(
                     existing,
                     data={**existing.data, CONF_API_KEY: api_key},
+                    unique_id=_account_id(api_key),
                 )
 
         return self.async_show_form(

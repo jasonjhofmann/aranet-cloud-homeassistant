@@ -44,6 +44,12 @@ class AranetSnapshot:
         links: Resolved-name helper from the most recent measurements
             response. Currently informational — entities use translation
             keys instead of API-supplied names.
+        id_by_serial: Maps each sensor's permanent hex serial to its
+            *current* cloud-numeric ID. Entities are keyed by serial (it
+            survives cloud-side rekeying) and resolve the numeric ID through
+            this map on every lookup, so a sensor that is deleted and
+            re-added in the cloud (new numeric ID, same serial) keeps
+            reporting.
     """
 
     sensors: dict[str, Sensor] = field(default_factory=dict)
@@ -51,10 +57,29 @@ class AranetSnapshot:
     readings: dict[tuple[str, str], Reading] = field(default_factory=dict)
     alarms: dict[str, Alarm] = field(default_factory=dict)
     links: Links | None = None
+    id_by_serial: dict[str, str] = field(default_factory=dict)
 
     def reading(self, sensor_id: str, metric_id: str) -> Reading | None:
         """Look up the latest reading for a sensor+metric pair, or ``None``."""
         return self.readings.get((sensor_id, metric_id))
+
+    def reading_for_serial(self, serial: str, metric_id: str) -> Reading | None:
+        """Latest reading for a sensor identified by its permanent serial.
+
+        Resolves the current cloud-numeric ID first, so the lookup keeps
+        working when the cloud rekeys the sensor.
+        """
+        sensor_id = self.id_by_serial.get(serial)
+        if sensor_id is None:
+            return None
+        return self.readings.get((sensor_id, metric_id))
+
+    def active_alarm_for_serial(self, serial: str, metric_id: str) -> Alarm | None:
+        """Like :meth:`active_alarm`, keyed by the sensor's permanent serial."""
+        sensor_id = self.id_by_serial.get(serial)
+        if sensor_id is None:
+            return None
+        return self.active_alarm(sensor_id, metric_id)
 
     def active_alarm(self, sensor_id: str, metric_id: str) -> Alarm | None:
         """Return the currently-active alarm for ``(sensor, metric)``, or None.
@@ -123,6 +148,7 @@ class AranetCoordinator(DataUpdateCoordinator[AranetSnapshot]):
             readings={(r.sensor, r.metric): r for r in (*measurements, *telemetry)},
             alarms={a.id: a for a in alarms},
             links=links,
+            id_by_serial={s.serial: s.id for s in sensors},
         )
         _LOGGER.debug(
             "Polled Aranet Cloud: %d sensor(s), %d base(s), %d reading(s), "

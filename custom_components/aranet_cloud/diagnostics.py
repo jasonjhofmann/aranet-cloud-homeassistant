@@ -37,6 +37,7 @@ REDACT = {
     # Present in today's dump
     CONF_API_KEY,
     "unique_id",
+    "config",  # Base.config — enterprise gateway configuration blob
     # Raw-payload keys (hypothetical future inclusion)
     "location",  # free-text sensor placement
     "region",  # account region

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import dataclasses
 import logging
+from datetime import timedelta
 from unittest.mock import MagicMock
 
 import pytest
-from aranet_cloud import AranetError
+from aranet_cloud import AranetError, Links
 from homeassistant.const import (
     ATTR_DEVICE_CLASS,
     ATTR_UNIT_OF_MEASUREMENT,
@@ -186,3 +188,174 @@ async def test_unknown_metric_is_skipped(
     # ...but the unknown metric was skipped — and that skip is logged.
     assert ent_reg.async_get_entity_id("sensor", DOMAIN, _uid("0ZZ99", "9999")) is None
     assert "metric id 9999" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# Staleness — a dead sensor must not report its last value as live forever
+# ---------------------------------------------------------------------------
+
+
+async def test_stale_reading_marks_unavailable(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """A reading older than READING_MAX_AGE makes only that entity unavailable."""
+    from custom_components.aranet_cloud.sensor import READING_MAX_AGE
+
+    stale_time = data.FIXED_TIME - READING_MAX_AGE - timedelta(minutes=1)
+    measurements = [
+        dataclasses.replace(r, time=stale_time)
+        if r.metric == data.M_CO2 and r.sensor == data.AIR_SENSOR_ID
+        else r
+        for r in data.build_measurement_readings()
+    ]
+    client = build_mock_client(measurements=measurements)
+    await setup_integration(hass, mock_config_entry, client)
+
+    assert state_for(hass, "sensor", _uid(AIR, data.M_CO2)).state == STATE_UNAVAILABLE
+    # Fresh siblings stay available.
+    assert (
+        state_for(hass, "sensor", _uid(AIR, data.M_TEMPERATURE)).state
+        != STATE_UNAVAILABLE
+    )
+
+
+async def test_fresh_reading_is_available(
+    hass: HomeAssistant, init_integration: MockConfigEntry
+) -> None:
+    """Readings at FIXED_TIME (== frozen now) are well inside the threshold."""
+    state = state_for(hass, "sensor", _uid(AIR, data.M_CO2))
+    assert state.state != STATE_UNAVAILABLE
+
+
+async def test_reading_without_timestamp_stays_available(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """No timestamp → benefit of the doubt (can't judge staleness)."""
+    measurements = [
+        dataclasses.replace(r, time=None)
+        if r.metric == data.M_CO2 and r.sensor == data.AIR_SENSOR_ID
+        else r
+        for r in data.build_measurement_readings()
+    ]
+    client = build_mock_client(measurements=measurements)
+    await setup_integration(hass, mock_config_entry, client)
+
+    assert state_for(hass, "sensor", _uid(AIR, data.M_CO2)).state != STATE_UNAVAILABLE
+
+
+# ---------------------------------------------------------------------------
+# Cloud-numeric ID churn — entities are keyed by serial and must survive it
+# ---------------------------------------------------------------------------
+
+
+async def test_cloud_id_change_with_stable_serial_keeps_reporting(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+    mock_client: MagicMock,
+) -> None:
+    """Delete-and-re-add in the cloud (new numeric id, same serial) keeps data flowing."""
+    new_id = "7777777"
+    air = data.build_air_sensor()
+    air.id = new_id  # same serial, rekeyed cloud id
+    mock_client.get_sensors.return_value = [air, data.build_soil_sensor()]
+    mock_client.get_measurements_last.return_value = (
+        [
+            dataclasses.replace(r, sensor=new_id, value=700.0)
+            if r.sensor == data.AIR_SENSOR_ID and r.metric == data.M_CO2
+            else (
+                dataclasses.replace(r, sensor=new_id)
+                if r.sensor == data.AIR_SENSOR_ID
+                else r
+            )
+            for r in data.build_measurement_readings()
+        ],
+        Links(),
+    )
+
+    await init_integration.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+
+    state = state_for(hass, "sensor", _uid(AIR, data.M_CO2))
+    assert state.state != STATE_UNAVAILABLE
+    assert float(state.state) == pytest.approx(700.0)
+
+
+# ---------------------------------------------------------------------------
+# Device-class ↔ unit validation
+# ---------------------------------------------------------------------------
+
+
+def test_every_unit_yields_valid_device_class_combo() -> None:
+    """Exhaustive: registry × every unit id must never emit an invalid combo."""
+    from homeassistant.components.sensor.const import DEVICE_CLASS_UNITS
+
+    from custom_components.aranet_cloud.const import UNIT_BY_ID, unit_for_id
+    from custom_components.aranet_cloud.sensor import (
+        METRIC_REGISTRY,
+        _effective_device_class,
+    )
+
+    for description in METRIC_REGISTRY.values():
+        for unit_id in UNIT_BY_ID:
+            unit = unit_for_id(unit_id) or None
+            device_class = _effective_device_class(description.device_class, unit)
+            if device_class is None:
+                continue
+            allowed = DEVICE_CLASS_UNITS.get(device_class)
+            if allowed is None:
+                continue  # HA imposes no unit restriction on this class
+            assert unit in allowed, (
+                f"metric {description.key!r} with unit id {unit_id} ({unit!r}) "
+                f"would emit invalid device_class {device_class}"
+            )
+
+
+def test_effective_device_class_known_combos() -> None:
+    """Spot-check the audit's specific invalid combos and the V→VOLTAGE promotion."""
+    from homeassistant.components.sensor import SensorDeviceClass
+
+    from custom_components.aranet_cloud.sensor import _effective_device_class
+
+    # promotions: a better class beats dropping the class
+    assert (
+        _effective_device_class(SensorDeviceClass.BATTERY, "V")
+        is SensorDeviceClass.VOLTAGE
+    )
+    assert (
+        _effective_device_class(SensorDeviceClass.BATTERY, "mV")
+        is SensorDeviceClass.VOLTAGE
+    )
+    # invalid combos degrade to no class
+    assert _effective_device_class(SensorDeviceClass.HUMIDITY, "%RH") is None
+    assert (
+        _effective_device_class(SensorDeviceClass.ATMOSPHERIC_PRESSURE, "atm") is None
+    )
+    assert _effective_device_class(SensorDeviceClass.SIGNAL_STRENGTH, "dBW") is None
+    assert _effective_device_class(SensorDeviceClass.MOISTURE, "/") is None
+    assert _effective_device_class(SensorDeviceClass.CO2, "/") is None
+    # valid combos pass through untouched
+    assert (
+        _effective_device_class(SensorDeviceClass.CO2, "ppm") is SensorDeviceClass.CO2
+    )
+    assert (
+        _effective_device_class(SensorDeviceClass.TEMPERATURE, "°F")
+        is SensorDeviceClass.TEMPERATURE
+    )
+
+
+async def test_battery_voltage_unit_promotes_to_voltage_class(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """Battery telemetry delivered in volts renders as a VOLTAGE sensor, not BATTERY %."""
+    telemetry = [
+        dataclasses.replace(r, unit="16", value=2.95)
+        if r.metric == data.M_BATTERY and r.sensor == data.AIR_SENSOR_ID
+        else r
+        for r in data.build_telemetry_readings()
+    ]
+    client = build_mock_client(telemetry=telemetry)
+    await setup_integration(hass, mock_config_entry, client)
+
+    state = state_for(hass, "sensor", _uid(AIR, data.M_BATTERY))
+    assert state.attributes[ATTR_UNIT_OF_MEASUREMENT] == "V"
+    assert state.attributes[ATTR_DEVICE_CLASS] == "voltage"

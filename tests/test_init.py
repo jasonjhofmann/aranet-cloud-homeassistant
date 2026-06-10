@@ -6,7 +6,7 @@ import logging
 from unittest.mock import MagicMock
 
 import pytest
-from aranet_cloud import AranetAuthError, AranetError
+from aranet_cloud import AranetAuthError, AranetError, Links
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
@@ -113,21 +113,96 @@ async def test_dynamic_devices_adds_appearing_sensor(
     assert SOIL_VWC_UID in caplog.text
 
 
-async def test_stale_devices_are_pruned(
+async def test_stale_devices_pruned_after_three_consecutive_absences(
     hass: HomeAssistant,
     init_integration: MockConfigEntry,
     mock_client: MagicMock,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A sensor the cloud stops reporting has its device removed (and logged)."""
+    """A sensor must be absent from 3 consecutive refreshes before removal."""
     device_reg = dr.async_get(hass)
     assert device_reg.async_get_device(identifiers=SOIL_DEVICE) is not None
 
     # Cloud drops the soil sensor.
     mock_client.get_sensors.return_value = [data.build_air_sensor()]
     with caplog.at_level(logging.INFO, logger="custom_components.aranet_cloud"):
+        # Refreshes 1 and 2: absence counted, device retained.
+        for _ in range(2):
+            await init_integration.runtime_data.async_refresh()
+            await hass.async_block_till_done()
+            assert device_reg.async_get_device(identifiers=SOIL_DEVICE) is not None
+
+        # Refresh 3: threshold reached, device pruned (and logged).
         await init_integration.runtime_data.async_refresh()
         await hass.async_block_till_done()
 
     assert device_reg.async_get_device(identifiers=SOIL_DEVICE) is None
-    assert "no longer reported by the Aranet Cloud account" in caplog.text
+    assert "has not been reported by the Aranet Cloud account" in caplog.text
+
+
+async def test_empty_snapshot_never_prunes(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+    mock_client: MagicMock,
+) -> None:
+    """A successful-but-empty snapshot (cloud hiccup) must not wipe the fleet."""
+    device_reg = dr.async_get(hass)
+    devices_before = len(
+        dr.async_entries_for_config_entry(device_reg, init_integration.entry_id)
+    )
+    assert devices_before > 0
+
+    mock_client.get_sensors.return_value = []
+    mock_client.get_bases.return_value = []
+    mock_client.get_measurements_last.return_value = ([], Links())
+    mock_client.get_telemetry_last.return_value = ([], Links())
+
+    # Even well past the absence threshold, nothing is pruned.
+    for _ in range(5):
+        await init_integration.runtime_data.async_refresh()
+        await hass.async_block_till_done()
+
+    devices_after = len(
+        dr.async_entries_for_config_entry(device_reg, init_integration.entry_id)
+    )
+    assert devices_after == devices_before
+
+
+async def test_single_poll_absence_does_not_prune(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+    mock_client: MagicMock,
+) -> None:
+    """One refresh without a sensor leaves its device untouched."""
+    device_reg = dr.async_get(hass)
+    mock_client.get_sensors.return_value = [data.build_air_sensor()]
+
+    await init_integration.runtime_data.async_refresh()
+    await hass.async_block_till_done()
+
+    assert device_reg.async_get_device(identifiers=SOIL_DEVICE) is not None
+
+
+async def test_reappearing_device_resets_absence_counter(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+    mock_client: MagicMock,
+) -> None:
+    """Absent-absent-present-absent-absent never reaches the threshold."""
+    device_reg = dr.async_get(hass)
+
+    async def refresh() -> None:
+        await init_integration.runtime_data.async_refresh()
+        await hass.async_block_till_done()
+
+    mock_client.get_sensors.return_value = [data.build_air_sensor()]
+    await refresh()
+    await refresh()
+    # Sensor comes back — counter must reset.
+    mock_client.get_sensors.return_value = data.build_sensors()
+    await refresh()
+    mock_client.get_sensors.return_value = [data.build_air_sensor()]
+    await refresh()
+    await refresh()
+
+    assert device_reg.async_get_device(identifiers=SOIL_DEVICE) is not None

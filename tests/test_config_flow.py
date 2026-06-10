@@ -12,6 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.aranet_cloud.config_flow import _account_id
 from custom_components.aranet_cloud.const import DOMAIN
 
 from .conftest import TEST_API_KEY, patch_clients
@@ -205,3 +206,52 @@ async def test_reauth_errors(
     assert result["errors"] == {"base": expected}
     # Original key unchanged after a failed reauth.
     assert mock_config_entry.data[CONF_API_KEY] == TEST_API_KEY
+
+
+async def test_reauth_rotates_unique_id_so_duplicate_add_aborts(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    patch_config_flow_client: MagicMock,
+) -> None:
+    """After key rotation via reauth, re-adding the account still dedupes.
+
+    Regression: reauth used to update only ``data`` — the entry kept the OLD
+    key's hash as unique_id, so adding the same account with the new key
+    created a duplicate entry with colliding devices.
+    """
+    mock_config_entry.add_to_hass(hass)
+
+    result = await mock_config_entry.start_reauth_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_API_KEY: "fresh-rotated-key"}
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    assert mock_config_entry.unique_id == _account_id("fresh-rotated-key")
+
+    # A new user flow with the rotated key must abort as already_configured.
+    flow_id = await _start_user_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        flow_id, {CONF_API_KEY: "fresh-rotated-key"}
+    )
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+
+
+async def test_reconfigure_rotates_unique_id(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_client: MagicMock,
+) -> None:
+    """Reconfigure keeps the unique_id in step with the new key's hash."""
+    mock_config_entry.add_to_hass(hass)
+
+    with patch_clients(mock_client):
+        result = await mock_config_entry.start_reconfigure_flow(hass)
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_API_KEY: "rotated-key"}
+        )
+        await hass.async_block_till_done()
+
+    assert result["reason"] == "reconfigure_successful"
+    assert mock_config_entry.unique_id == _account_id("rotated-key")
