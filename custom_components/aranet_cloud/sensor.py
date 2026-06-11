@@ -368,7 +368,13 @@ class AranetMetricSensor(CoordinatorEntity["AranetCoordinator"], SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        """Latest reading's value, or ``None`` if no data yet."""
+        """Latest reading's value, or ``None`` if no data yet.
+
+        Since aranet-cloud 0.2.0, ``Reading.value`` is ``float | None`` —
+        the API can report ``null`` (or unparseable) values, which the
+        library no longer coerces to ``0.0``. A ``None`` value passes
+        through here so HA shows *unknown* instead of a fabricated zero.
+        """
         reading = self._reading()
         return reading.value if reading else None
 

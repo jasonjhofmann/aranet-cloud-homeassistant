@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 from homeassistant.const import STATE_OFF, STATE_ON
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -43,6 +45,21 @@ async def test_low_battery_on_only_for_alarmed_sensor(
 
     assert state_for(hass, "binary_sensor", LOW_BATT_AIR).state == STATE_ON
     assert state_for(hass, "binary_sensor", LOW_BATT_SOIL).state == STATE_OFF
+
+
+async def test_alarm_with_null_value_still_drives_entity(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """An alarm whose value/worst are null (aranet-cloud 0.2.0) still registers.
+
+    The alarm logic only checks alarm *presence* (never ``.value`` /
+    ``.worst``), so null numeric fields must not crash or change behavior.
+    """
+    alarm = dataclasses.replace(data.build_low_battery_alarm(), value=None, worst=None)
+    client = build_mock_client(alarms=[alarm])
+    await setup_integration(hass, mock_config_entry, client)
+
+    assert state_for(hass, "binary_sensor", LOW_BATT_AIR).state == STATE_ON
 
 
 async def test_base_connectivity_on_when_no_alarm(
