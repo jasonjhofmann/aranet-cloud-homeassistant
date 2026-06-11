@@ -71,11 +71,12 @@ class AranetCloudConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Let the user swap in a new API key without removing the entry.
 
-        We can't guard against repointing at a *different* account here: the
-        config-entry ``unique_id`` is a salted hash of the key itself (Aranet
-        exposes no stable account ID), so a rotated key necessarily produces a
-        different hash. We therefore validate the key and update the entry in
-        place — same behaviour as the reauth path.
+        We can't verify the new key belongs to the *same* account (the
+        config-entry ``unique_id`` is a salted hash of the key itself —
+        Aranet exposes no stable account ID), so a rotated key necessarily
+        produces a different hash. We validate the key, guard against the
+        new hash colliding with a *different* already-configured entry, and
+        update the entry in place — same behaviour as the reauth path.
         """
         errors: dict[str, str] = {}
 
@@ -91,11 +92,19 @@ class AranetCloudConfigFlow(ConfigFlow, domain=DOMAIN):
             else:
                 # The unique_id is a salted hash of the key, so a rotated key
                 # must re-derive it — otherwise duplicate-account protection
-                # tests new setups against the OLD key's hash forever.
+                # tests new setups against the OLD key's hash forever. But if
+                # ANOTHER entry already owns the new hash (the same account
+                # configured twice, then one rotated onto the other's key),
+                # updating would leave two entries with the same unique_id
+                # and colliding (DOMAIN, serial) devices — abort instead.
+                entry = self._get_reconfigure_entry()
+                new_unique_id = _account_id(api_key)
+                if self._unique_id_owned_by_other_entry(new_unique_id, entry.entry_id):
+                    return self.async_abort(reason="already_configured")
                 return self.async_update_reload_and_abort(
-                    self._get_reconfigure_entry(),
+                    entry,
                     data_updates={CONF_API_KEY: api_key},
-                    unique_id=_account_id(api_key),
+                    unique_id=new_unique_id,
                 )
 
         return self.async_show_form(
@@ -129,17 +138,37 @@ class AranetCloudConfigFlow(ConfigFlow, domain=DOMAIN):
                 existing = self._get_reauth_entry()
                 # Keep the unique_id in step with the rotated key (see the
                 # reconfigure step) so adding the same account again still
-                # aborts as already_configured.
+                # aborts as already_configured — unless a DIFFERENT entry
+                # already owns the new key's hash, in which case updating
+                # would create a unique_id collision (see reconfigure).
+                new_unique_id = _account_id(api_key)
+                if self._unique_id_owned_by_other_entry(
+                    new_unique_id, existing.entry_id
+                ):
+                    return self.async_abort(reason="already_configured")
                 return self.async_update_reload_and_abort(
                     existing,
                     data={**existing.data, CONF_API_KEY: api_key},
-                    unique_id=_account_id(api_key),
+                    unique_id=new_unique_id,
                 )
 
         return self.async_show_form(
             step_id="reauth_confirm",
             data_schema=STEP_USER_DATA_SCHEMA,
             errors=errors,
+        )
+
+    def _unique_id_owned_by_other_entry(self, unique_id: str, entry_id: str) -> bool:
+        """True if a config entry other than ``entry_id`` owns ``unique_id``.
+
+        Guards the reauth/reconfigure unique_id rotation: rotating an entry
+        onto a key whose hash is already another entry's unique_id would
+        leave two entries with the same unique_id and colliding
+        ``(DOMAIN, serial)`` devices.
+        """
+        return any(
+            other.unique_id == unique_id and other.entry_id != entry_id
+            for other in self.hass.config_entries.async_entries(DOMAIN)
         )
 
     async def _validate(self, api_key: str) -> str:

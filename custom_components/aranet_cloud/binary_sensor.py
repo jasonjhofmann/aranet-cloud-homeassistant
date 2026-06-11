@@ -17,6 +17,7 @@ matching metric. Reserved for a future revision.
 from __future__ import annotations
 
 import logging
+from functools import partial
 from typing import TYPE_CHECKING
 
 from homeassistant.components.binary_sensor import (
@@ -25,9 +26,10 @@ from homeassistant.components.binary_sensor import (
 )
 from homeassistant.core import callback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, Metric
-from .sensor import _base_device_info, _sensor_device_info
+from .sensor import READING_MAX_AGE, _base_device_info, _sensor_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,30 +55,39 @@ async def async_setup_entry(
 ) -> None:
     """Create alarm binary_sensors, adding more as sensors/bases appear."""
     coordinator: AranetCoordinator = entry.runtime_data
+    # Per-entity keys whose entity object currently exists in HA. As in
+    # sensor.py: a key is discarded only when the entity is actually removed
+    # (stale-device prune, or an aborted add), never on mere skill
+    # deactivation — re-activation must not re-add an existing unique_id.
     known: set[str] = set()
+
+    def _track(entity: BinarySensorEntity, key: str) -> BinarySensorEntity:
+        """Mark ``key`` as known until its entity actually leaves HA."""
+        known.add(key)
+        entity.async_on_remove(partial(known.discard, key))
+        return entity
 
     @callback
     def _add_entities() -> None:
         snapshot = coordinator.data
-        desired: set[str] = set()
         new_entities: list[BinarySensorEntity] = []
 
         for sensor in snapshot.sensors.values():
             if Metric.BATTERY not in sensor.active_metrics:
                 continue
             key = f"low_battery_{sensor.serial}"
-            desired.add(key)
             if key not in known:
-                new_entities.append(AranetLowBatteryBinarySensor(coordinator, sensor))
+                new_entities.append(
+                    _track(AranetLowBatteryBinarySensor(coordinator, sensor), key)
+                )
 
         for base in snapshot.bases.values():
             key = f"offline_{base.id}"
-            desired.add(key)
             if key not in known:
-                new_entities.append(AranetBaseOfflineBinarySensor(coordinator, base))
+                new_entities.append(
+                    _track(AranetBaseOfflineBinarySensor(coordinator, base), key)
+                )
 
-        known.clear()
-        known.update(desired)
         if new_entities:
             _LOGGER.debug(
                 "Adding %d binary_sensor entit%s: %s",
@@ -114,6 +125,25 @@ class AranetLowBatteryBinarySensor(
         )
         return alarm is not None
 
+    @property
+    def available(self) -> bool:
+        """Tied to the underlying battery reading's staleness.
+
+        The alarm feed itself carries no timestamp for the *absence* of an
+        alarm, but the sensor's battery telemetry does: a battery reading
+        older than :data:`READING_MAX_AGE` means the sensor has stopped
+        reporting, so neither "low battery" nor "battery fine" can be
+        vouched for — same staleness pattern as the metric sensors. With no
+        reading or no timestamp the alarm feed (refreshed every poll) gets
+        the benefit of the doubt.
+        """
+        if not super().available:
+            return False
+        reading = self.coordinator.data.reading_for_serial(self._serial, Metric.BATTERY)
+        if reading is None or reading.time is None:
+            return True
+        return (dt_util.utcnow() - reading.time) <= READING_MAX_AGE
+
 
 class AranetBaseOfflineBinarySensor(
     CoordinatorEntity["AranetCoordinator"], BinarySensorEntity
@@ -129,6 +159,14 @@ class AranetBaseOfflineBinarySensor(
         self._base_id = base.id
         self._attr_unique_id = f"{DOMAIN}_base_{base.id}_offline"
         self._attr_device_info = _base_device_info(base)
+
+    # Availability is deliberately NOT gated on ``Base.last_seen`` staleness
+    # (unlike AranetBaseFirmwareSensor): a stale last_seen is precisely the
+    # condition this entity exists to report — the cloud-side offline alarm
+    # keeps asserting "Disconnected" while the base is dark, and going
+    # unavailable would mask it. The "no alarm" state itself carries no
+    # timestamp to judge, so coordinator success is the right availability
+    # signal here.
 
     @property
     def is_on(self) -> bool:

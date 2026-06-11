@@ -1,5 +1,39 @@
 # Changelog
 
+All notable changes to **aranet-cloud-homeassistant** are documented here.
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
+versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## 0.8.2 — 2026-06-10
+
+Adjacent-issue sweep from a follow-up audit.
+
+- **API-key rotation can no longer collide two config entries.** Reauth
+  and reconfigure now abort (*already configured*) when the new key's
+  account hash is already owned by a *different* entry (same account
+  configured twice, then one rotated onto the other's key). Previously
+  both entries ended up with the same `unique_id` and colliding
+  `(domain, serial)` devices.
+- **Re-activated metrics no longer log duplicate-add registry errors.**
+  When a metric's skill flipped inactive, the platforms dropped its key
+  from their bookkeeping while the entity object remained — re-activation
+  then re-added the same unique_id, logging "ID … already exists" on
+  every occurrence. Keys are now tracked for the lifetime of the entity
+  object and released only when the entity is actually removed (e.g.
+  stale-device prune), on both the sensor and binary_sensor platforms.
+- **Base-bound entities now go stale like metric sensors.** The base
+  firmware sensor goes unavailable when `Base.last_seen` exceeds the same
+  20-minute staleness window the metric sensors got in 0.8.0, and the
+  low-battery binary sensor mirrors its underlying battery reading's
+  staleness. The base-offline *connectivity* binary sensor is
+  deliberately **not** gated on `last_seen`: a stale check-in is exactly
+  the condition it reports — the cloud-side alarm keeps asserting
+  *Disconnected* while the base is dark, and going unavailable would mask
+  it.
+- **Docs:** README status line no longer says "0.6.x"; CHANGELOG
+  normalized — intro moved to the top, the *Unreleased* tooling items
+  folded into 0.8.0 (where they actually shipped), header style unified.
+
 ## 0.8.1 — 2026-06-10
 
 Dependency bump: **aranet-cloud 0.1.0 → 0.2.0**.
@@ -51,6 +85,16 @@ Hardening release from a code audit.
   text — Home Assistant stores config-entry data as plain JSON in
   `.storage`. The accurate half (the key is never written back to your
   Aranet Cloud account) remains.
+- Tooling/CI (no integration changes): Ruff `target-version` lowered from
+  `py314` to `py312` — the oldest interpreter implied by the declared HA
+  minimum (hacs.json `homeassistant: 2025.1.0` ran Python 3.12). Under
+  `py314`, `ruff format` rewrites `except (A, B):` into the 3.14-only
+  unparenthesized form (PEP 758) — the SyntaxError regression that
+  shipped in visiblair-homeassistant 0.6.2. Mypy stays on 3.14 because it
+  parses the installed current Home Assistant source.
+- CI restructured: `lint` (ruff + mypy on Python 3.14), `syntax-floor`
+  (`compileall` on Python 3.12), and `test` (pytest matrix on 3.13 and
+  3.14; coverage gate unchanged).
 
 ## 0.7.2 — 2026-06-10
 
@@ -72,26 +116,7 @@ Observability gap-fill (no functional changes).
 - CI/tooling moved to Python 3.14 (latest Home Assistant test harness
   requires it; pinning 3.13 silently tested against months-old HA).
 
-All notable changes to **aranet-cloud-homeassistant** are documented here.
-The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
-versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [Unreleased]
-
-### Changed (tooling/CI only — no integration changes)
-
-- Ruff `target-version` lowered from `py314` to `py312` — the oldest
-  interpreter implied by the declared HA minimum (hacs.json
-  `homeassistant: 2025.1.0` ran Python 3.12). Under `py314`,
-  `ruff format` rewrites `except (A, B):` into the 3.14-only
-  unparenthesized form (PEP 758) — the SyntaxError regression that
-  shipped in visiblair-homeassistant 0.6.2. Mypy stays on 3.14 because
-  it parses the installed current Home Assistant source.
-- CI restructured: `lint` (ruff + mypy on Python 3.14), `syntax-floor`
-  (`compileall` on Python 3.12), and `test` (pytest matrix on 3.13 and
-  3.14; coverage gate unchanged).
-
-## [0.7.0] — 2026-06-09
+## 0.7.0 — 2026-06-09
 
 ### Added
 
@@ -126,7 +151,7 @@ versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - Documented the full metric set in a **Supported metrics** section and the
     Entity reference table; corrected the soil/pore EC unit (`mS/cm`).
 
-## [0.6.0] — 2026-06-08
+## 0.6.0 — 2026-06-08
 
 Quality scale **Gold → Platinum** (`manifest.json` `"quality_scale": "platinum"`),
 plus a logging and documentation pass.
@@ -159,7 +184,7 @@ change to entities or devices):
 - `CONTRIBUTING.md`: how to run the integration's own ruff / mypy / pytest
   checks, plus the mypy package-name-shadowing note.
 
-## [0.5.0] — 2026-06-08
+## 0.5.0 — 2026-06-08
 
 Quality scale **Bronze → Gold** (`manifest.json` `"quality_scale": "gold"`).
 
@@ -206,7 +231,7 @@ Quality scale **Bronze → Gold** (`manifest.json` `"quality_scale": "gold"`).
 - Removed the dead `options` / `scan_interval` translation blocks left over
   from the 0.4.0 OptionsFlow removal.
 
-## [0.4.0] — 2026-05-27
+## 0.4.0 — 2026-05-27
 
 ### Removed (breaking)
 
@@ -244,7 +269,7 @@ Closes Bronze quality-scale blockers for HA Core acceptance. Remaining
 gaps (deferred): no tests, no CI workflows, no `pyproject.toml`,
 `async_step_reconfigure` not implemented (Silver-tier).
 
-## [0.3.0] — 2026-05-19
+## 0.3.0 — 2026-05-19
 
 Phase 3 — full feature coverage. From 6 entities to 77, all sensor types
 and metrics supported.
@@ -294,7 +319,7 @@ and metrics supported.
   ("calls `device_registry.async_get_or_create` referencing a non
   existing via_device").
 
-## [0.1.0] — 2026-05-19
+## 0.1.0 — 2026-05-19
 
 Phase 2 — minimum viable wiring. CO₂ entity per Aranet4 sensor, proving
 the integration plumbs from config flow through coordinator to entity
@@ -313,8 +338,3 @@ state.
 - `AranetCO2Sensor` — one entity per CO₂-capable sensor.
 - Aranet brand assets bundled in `brand/` (Phase 3 work, backported to
   the 0.1.x lineage for context).
-
-[Unreleased]: https://github.com/jasonjhofmann/aranet-cloud-homeassistant/compare/v0.4.0...HEAD
-[0.4.0]: https://github.com/jasonjhofmann/aranet-cloud-homeassistant/releases/tag/v0.4.0
-[0.3.0]: https://github.com/jasonjhofmann/aranet-cloud-homeassistant/releases/tag/v0.3.0
-[0.1.0]: https://github.com/jasonjhofmann/aranet-cloud-homeassistant/releases/tag/v0.1.0

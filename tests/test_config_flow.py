@@ -238,6 +238,69 @@ async def test_reauth_rotates_unique_id_so_duplicate_add_aborts(
     assert result["reason"] == "already_configured"
 
 
+def _other_account_entry() -> MockConfigEntry:
+    """A second entry for a different account (its own key hash)."""
+    return MockConfigEntry(
+        domain=DOMAIN,
+        title="Aranet-other",
+        data={CONF_API_KEY: "other-account-key"},
+        unique_id=_account_id("other-account-key"),
+    )
+
+
+async def test_reauth_aborts_when_new_key_collides_with_other_entry(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    patch_config_flow_client: MagicMock,
+) -> None:
+    """Rotating onto a key whose hash ANOTHER entry owns must abort.
+
+    Regression: the 0.8.0 unique_id rotation had no cross-entry guard — the
+    same account configured twice, then one reauthed onto the other's key,
+    left two entries with the same unique_id and colliding devices.
+    """
+    mock_config_entry.add_to_hass(hass)
+    other = _other_account_entry()
+    other.add_to_hass(hass)
+
+    result = await mock_config_entry.start_reauth_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_API_KEY: "other-account-key"}
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    # The reauthed entry is untouched (key AND unique_id)...
+    assert mock_config_entry.data[CONF_API_KEY] == TEST_API_KEY
+    assert mock_config_entry.unique_id == _account_id(TEST_API_KEY)
+    # ...and no two entries share a unique_id.
+    unique_ids = [e.unique_id for e in hass.config_entries.async_entries(DOMAIN)]
+    assert len(unique_ids) == len(set(unique_ids))
+
+
+async def test_reconfigure_aborts_when_new_key_collides_with_other_entry(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    patch_config_flow_client: MagicMock,
+) -> None:
+    """Same cross-entry guard on the reconfigure path."""
+    mock_config_entry.add_to_hass(hass)
+    other = _other_account_entry()
+    other.add_to_hass(hass)
+
+    result = await mock_config_entry.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {CONF_API_KEY: "other-account-key"}
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert mock_config_entry.data[CONF_API_KEY] == TEST_API_KEY
+    assert mock_config_entry.unique_id == _account_id(TEST_API_KEY)
+    unique_ids = [e.unique_id for e in hass.config_entries.async_entries(DOMAIN)]
+    assert len(unique_ids) == len(set(unique_ids))
+
+
 async def test_reconfigure_rotates_unique_id(
     hass: HomeAssistant,
     mock_config_entry: MockConfigEntry,

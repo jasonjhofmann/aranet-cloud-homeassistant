@@ -387,3 +387,94 @@ async def test_battery_voltage_unit_promotes_to_voltage_class(
     state = state_for(hass, "sensor", _uid(AIR, data.M_BATTERY))
     assert state.attributes[ATTR_UNIT_OF_MEASUREMENT] == "V"
     assert state.attributes[ATTR_DEVICE_CLASS] == "voltage"
+
+
+# ---------------------------------------------------------------------------
+# Base staleness — Base.last_seen gates the base-bound firmware sensor
+# ---------------------------------------------------------------------------
+
+
+async def test_base_firmware_unavailable_when_last_seen_stale(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """A base whose last check-in exceeds READING_MAX_AGE goes unavailable."""
+    from custom_components.aranet_cloud.sensor import READING_MAX_AGE
+
+    base = data.build_base()
+    base.last_seen = data.FIXED_TIME - READING_MAX_AGE - timedelta(minutes=1)
+    client = build_mock_client(bases=[base])
+    await setup_integration(hass, mock_config_entry, client)
+
+    unique_id = f"{DOMAIN}_base_{data.BASE_ID}_firmware"
+    assert state_for(hass, "sensor", unique_id).state == STATE_UNAVAILABLE
+
+
+async def test_base_firmware_without_last_seen_stays_available(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """No last_seen timestamp → benefit of the doubt (can't judge staleness)."""
+    base = data.build_base()
+    base.last_seen = None
+    client = build_mock_client(bases=[base])
+    await setup_integration(hass, mock_config_entry, client)
+
+    unique_id = f"{DOMAIN}_base_{data.BASE_ID}_firmware"
+    state = state_for(hass, "sensor", unique_id)
+    assert state.state != STATE_UNAVAILABLE
+    assert state.state == "1.0.0"
+
+
+# ---------------------------------------------------------------------------
+# Skill deactivation/re-activation — bookkeeping must not re-add unique_ids
+# ---------------------------------------------------------------------------
+
+
+def _air_sensor_with_co2_active(active: bool):
+    """The default air sensor with its CO2 skill flipped to ``active``."""
+    from aranet_cloud import Skill
+
+    air = data.build_air_sensor()
+    air.skills = [
+        Skill(metric=s.metric, active=active) if s.metric == data.M_CO2 else s
+        for s in air.skills
+    ]
+    return air
+
+
+async def test_metric_reactivation_does_not_duplicate_entity(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+    mock_client: MagicMock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Deactivate a metric's skill, then re-activate it → no duplicate add.
+
+    Regression: the platforms used to drop a deactivated metric's key from
+    their ``known`` bookkeeping while the entity object remained, so
+    re-activation re-ran async_add_entities with the same unique_id —
+    "ID … already exists" registry errors on every occurrence.
+    """
+    coordinator = init_integration.runtime_data
+
+    # Refresh 1: CO2 skill flips inactive (entity object remains in HA).
+    mock_client.get_sensors.return_value = [
+        _air_sensor_with_co2_active(False),
+        data.build_soil_sensor(),
+    ]
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+
+    # Refresh 2: the skill comes back.
+    mock_client.get_sensors.return_value = data.build_sensors()
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+
+    assert "already exists" not in caplog.text
+
+    # Exactly one CO2 entity, still registered and still reporting.
+    ent_reg = er.async_get(hass)
+    entries = er.async_entries_for_config_entry(ent_reg, init_integration.entry_id)
+    co2_uid = _uid(AIR, data.M_CO2)
+    assert [e.unique_id for e in entries].count(co2_uid) == 1
+    state = state_for(hass, "sensor", co2_uid)
+    assert float(state.state) == pytest.approx(612.0)
