@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import timedelta
+from functools import partial
 from typing import TYPE_CHECKING
 
 from homeassistant.components.sensor import (
@@ -278,17 +279,31 @@ async def async_setup_entry(
 ) -> None:
     """Create sensor entities, adding more as new sensors appear (dynamic-devices)."""
     coordinator: AranetCoordinator = entry.runtime_data
-    # Tracks the per-entity keys we've already added; pruned to the live set on
-    # each refresh so a sensor that disappears and returns gets a fresh entity.
+    # Per-entity keys whose entity object currently exists in HA. A key is
+    # added when the entity is created and discarded only when the entity is
+    # actually removed (stale-device prune, or an aborted add) — NOT when its
+    # skill merely flips inactive. A deactivated metric keeps its entity and
+    # its key, so a later re-activation doesn't call async_add_entities again
+    # with an already-registered unique_id ("ID … already exists" registry
+    # errors on every occurrence).
     known: set[str] = set()
     # Remembers which (sensor, metric) skips we've already logged, so the
     # debug line below fires once rather than every coordinator cycle.
     logged_skips: set[str] = set()
 
+    def _track(entity: SensorEntity, key: str) -> SensorEntity:
+        """Mark ``key`` as known until its entity actually leaves HA.
+
+        ``async_on_remove`` also fires when an add is aborted, so a failed
+        add frees the key for a retry on the next refresh.
+        """
+        known.add(key)
+        entity.async_on_remove(partial(known.discard, key))
+        return entity
+
     @callback
     def _add_entities() -> None:
         snapshot = coordinator.data
-        desired: set[str] = set()
         new_entities: list[SensorEntity] = []
 
         # Bases first: their devices back the ``via_device`` link of the
@@ -296,9 +311,10 @@ async def async_setup_entry(
         # __init__'s device sync, which runs ahead of this listener).
         for base in snapshot.bases.values():
             key = f"base_{base.id}"
-            desired.add(key)
             if key not in known:
-                new_entities.append(AranetBaseFirmwareSensor(coordinator, base))
+                new_entities.append(
+                    _track(AranetBaseFirmwareSensor(coordinator, base), key)
+                )
 
         for sensor in snapshot.sensors.values():
             for metric_id in sensor.active_metrics:
@@ -318,14 +334,13 @@ async def async_setup_entry(
                         )
                     continue
                 key = f"{sensor.serial}_{metric_id}"
-                desired.add(key)
                 if key not in known:
                     new_entities.append(
-                        AranetMetricSensor(coordinator, sensor, description)
+                        _track(
+                            AranetMetricSensor(coordinator, sensor, description), key
+                        )
                     )
 
-        known.clear()
-        known.update(desired)
         if new_entities:
             _LOGGER.debug(
                 "Adding %d sensor entit%s: %s",
@@ -444,6 +459,25 @@ class AranetBaseFirmwareSensor(CoordinatorEntity["AranetCoordinator"], SensorEnt
     def native_value(self) -> str | None:
         base = self.coordinator.data.bases.get(self._base_id)
         return base.firmware if base else None
+
+    @property
+    def available(self) -> bool:
+        """Available while the base keeps checking in with the cloud.
+
+        ``Base.last_seen`` is the cloud's record of the gateway's last
+        check-in. Older than :data:`READING_MAX_AGE` means the base is dark
+        (power/network down) and its data is no longer live — same staleness
+        pattern as the metric sensors. A base without a ``last_seen``
+        timestamp is given the benefit of the doubt.
+        """
+        if not super().available:
+            return False
+        base = self.coordinator.data.bases.get(self._base_id)
+        if base is None:
+            return False
+        if base.last_seen is None:
+            return True
+        return (dt_util.utcnow() - base.last_seen) <= READING_MAX_AGE
 
 
 # ---------------------------------------------------------------------------
