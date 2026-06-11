@@ -15,7 +15,7 @@
   ],
   "quality_scale": "platinum",
   "requirements": [
-    "aranet-cloud==0.2.0"
+    "aranet-cloud==0.2.1"
   ],
-  "version": "0.8.2"
+  "version": "0.8.3"
 }

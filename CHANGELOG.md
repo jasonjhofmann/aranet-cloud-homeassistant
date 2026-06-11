@@ -4,6 +4,21 @@ All notable changes to **aranet-cloud-homeassistant** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.8.3 — 2026-06-10
+
+Dependency bump: **aranet-cloud 0.2.0 → 0.2.1**.
+
+- **Library error-contract hardening, transparent to the integration.**
+  aranet-cloud 0.2.1 wraps binary-download timeouts in
+  `AranetConnectionError` (no more raw `TimeoutError` escaping the
+  hierarchy), rejects non-object 200 JSON bodies with
+  `AranetServerError`, and populates `AranetRateLimitError.retry_after`
+  from the `Retry-After` header. All three are `AranetError` subclasses,
+  which the coordinator already maps to `UpdateFailed` (and the config
+  flow to *cannot connect*) — no integration-side changes required; the
+  hardened paths simply can no longer crash outside that mapping.
+- CI dependency pins updated to `aranet-cloud==0.2.1`.
+
 ## 0.8.2 — 2026-06-10
 
 Adjacent-issue sweep from a follow-up audit.
