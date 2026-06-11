@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.1 — 2026-06-10
+
+Dependency bump: **aranet-cloud 0.1.0 → 0.2.0**.
+
+- **Null readings now surface as *unknown*, not `0.0`.** Since
+  aranet-cloud 0.2.0, `Reading.value` is `float | None` — a `null` (or
+  unparseable) value from the cloud is no longer coerced to `0.0`. The
+  sensor entity passes `None` through, so Home Assistant shows *unknown*
+  instead of a fabricated zero (which would have poisoned long-term
+  statistics). `Alarm.value`/`worst` got the same treatment in the
+  library; the integration's alarm logic only checks alarm presence, so
+  no behavior change there — regression-tested anyway.
+- **Request timeout now applies with injected sessions** (library fix,
+  transparent to the integration — HA injects its shared session).
+- CI dependency pins updated to `aranet-cloud==0.2.0`.
+
 ## 0.8.0 — 2026-06-10
 
 Hardening release from a code audit.

@@ -124,7 +124,7 @@ def build_sensors() -> list[Sensor]:
     return [build_air_sensor(), build_soil_sensor()]
 
 
-def _reading(sensor_id: str, metric: str, unit: str, value: float) -> Reading:
+def _reading(sensor_id: str, metric: str, unit: str, value: float | None) -> Reading:
     return Reading(
         sensor=sensor_id, metric=metric, unit=unit, value=value, time=FIXED_TIME
     )

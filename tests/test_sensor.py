@@ -13,6 +13,7 @@ from homeassistant.const import (
     ATTR_DEVICE_CLASS,
     ATTR_UNIT_OF_MEASUREMENT,
     STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
     EntityCategory,
 )
 from homeassistant.core import HomeAssistant
@@ -99,6 +100,33 @@ async def test_missing_reading_marks_unavailable(
     state = state_for(hass, "sensor", _uid(AIR, data.M_CO2))
     assert state is not None
     assert state.state == STATE_UNAVAILABLE
+
+
+async def test_null_reading_value_is_unknown_not_zero(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """A reading with a null value (aranet-cloud 0.2.0) → state unknown.
+
+    The cloud can report ``null`` for a metric; since aranet-cloud 0.2.0
+    ``Reading.value`` is ``float | None`` instead of coercing to ``0.0``.
+    The entity stays *available* (the reading itself is fresh) but its
+    state must be *unknown* — never a fabricated zero.
+    """
+    measurements = [
+        dataclasses.replace(r, value=None)
+        if r.metric == data.M_CO2 and r.sensor == data.AIR_SENSOR_ID
+        else r
+        for r in data.build_measurement_readings()
+    ]
+    client = build_mock_client(measurements=measurements)
+    await setup_integration(hass, mock_config_entry, client)
+
+    state = state_for(hass, "sensor", _uid(AIR, data.M_CO2))
+    assert state is not None
+    assert state.state == STATE_UNKNOWN
+    # Fresh siblings with real values are unaffected.
+    temp = state_for(hass, "sensor", _uid(AIR, data.M_TEMPERATURE))
+    assert float(temp.state) == pytest.approx(22.7)
 
 
 async def test_entities_unavailable_after_failed_refresh(
