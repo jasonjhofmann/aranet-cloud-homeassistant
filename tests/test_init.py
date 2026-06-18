@@ -140,6 +140,31 @@ async def test_stale_devices_pruned_after_three_consecutive_absences(
     assert "has not been reported by the Aranet Cloud account" in caplog.text
 
 
+async def test_stale_prune_removes_entities_too(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+    mock_client: MagicMock,
+) -> None:
+    """Pruning a stale device also drops its entities from the registry.
+
+    The hysteresis tests cover the *decision* to prune; this asserts the
+    actual side effect of ``async_update_device(remove_config_entry_id=...)``
+    — the device and its entity-registry entries are gone.
+    """
+    ent_reg = er.async_get(hass)
+    device_reg = dr.async_get(hass)
+    assert ent_reg.async_get_entity_id("sensor", DOMAIN, SOIL_VWC_UID) is not None
+
+    # Cloud drops the soil sensor; refresh past the absence threshold.
+    mock_client.get_sensors.return_value = [data.build_air_sensor()]
+    for _ in range(3):
+        await init_integration.runtime_data.async_refresh()
+        await hass.async_block_till_done()
+
+    assert device_reg.async_get_device(identifiers=SOIL_DEVICE) is None
+    assert ent_reg.async_get_entity_id("sensor", DOMAIN, SOIL_VWC_UID) is None
+
+
 async def test_empty_snapshot_never_prunes(
     hass: HomeAssistant,
     init_integration: MockConfigEntry,
