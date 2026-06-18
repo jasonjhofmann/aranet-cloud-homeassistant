@@ -20,7 +20,7 @@ that aren't in BLE range of your HA host.
   temperature, humidity, CO₂, atmospheric pressure, volumetric water
   content, soil + pore electrical conductivity, soil dielectric permittivity,
   vapour-pressure deficit, day light integral, RSSI (signal), battery.
-  (See [Supported metrics](#supported-metrics) — unrecognised metrics aren't
+  (See [Supported metrics](https://github.com/jasonjhofmann/aranet-cloud-homeassistant#supported-metrics) — unrecognised metrics aren't
   surfaced yet.)
 - **Binary sensors** for the built-in Aranet alarm rules: per-sensor low
   battery, per-base-station offline.
@@ -42,7 +42,7 @@ that aren't in BLE range of your HA host.
 The integration is **catalog-driven**: it doesn't hard-code a list of sensor
 models. It creates a Home Assistant device for any Aranet sensor on your
 account that reports at least one metric it knows how to render (see
-[Supported metrics](#supported-metrics) below), so new and Pro/virtual sensor
+[Supported metrics](https://github.com/jasonjhofmann/aranet-cloud-homeassistant#supported-metrics) below), so new and Pro/virtual sensor
 types appear automatically.
 
 ### Verified on real hardware
@@ -57,12 +57,12 @@ These types have been tested end-to-end against physical sensors:
 ### Expected to work — not yet verified
 
 The Aranet Cloud catalog lists ~53 sensor *types*. Every **metric** they can
-report is rendered (see [Supported metrics](#supported-metrics)), but the
+report is rendered (see [Supported metrics](https://github.com/jasonjhofmann/aranet-cloud-homeassistant#supported-metrics)), but the
 following device types haven't been exercised on physical hardware — for
 example the **Aranet2 (S4V5)**, the **0–10 VDC / 4–20 mA transmitter bridges
 (S5V1 / S5V2)**, the **Radon Plus PRO**, and Pro/virtual sensor types. They
 should appear and work; if you have one, a
-[diagnostics download](#reporting-issues) on an issue is very welcome.
+[diagnostics download](https://github.com/jasonjhofmann/aranet-cloud-homeassistant#reporting-issues) on an issue is very welcome.
 
 ## Supported metrics
 
@@ -76,7 +76,7 @@ catalog**. A sensor gets a `sensor` entity for each of these it reports:
 - radon, fraction
 - signal strength, battery
 
-(See [Entity reference](#entity-reference) for device classes and units.) Plus
+(See [Entity reference](https://github.com/jasonjhofmann/aranet-cloud-homeassistant#entity-reference) for device classes and units.) Plus
 the built-in **Low battery** / **Base station offline** binary sensors and a
 per-base firmware diagnostic.
 
@@ -295,7 +295,7 @@ At `debug` you'll see, in `Settings → System → Logs`:
   new sensor or metric appears.
 - **Unrendered metrics** — `Sensor X reports metric id N … — skipping` (once
   per sensor/metric) if Aranet ever reports a metric this integration doesn't
-  render yet. That's your cue to [open an issue](#reporting-issues) — adding it
+  render yet. That's your cue to [open an issue](https://github.com/jasonjhofmann/aranet-cloud-homeassistant#reporting-issues) — adding it
   is a one-row change.
 - **Device cleanup** — a one-line `INFO` (no debug needed) when a device is
   removed because the account stopped reporting it.
