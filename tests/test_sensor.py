@@ -371,6 +371,30 @@ def test_effective_device_class_known_combos() -> None:
     )
 
 
+async def test_unknown_unit_renders_value_without_unit(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """A reading whose unit id isn't in UNIT_BY_ID shows the value but no unit.
+
+    README contract: "an unrecognised unit shows the value with no unit
+    label." The device class is also dropped — CO2 can't be vouched for
+    without a ppm-class unit (_effective_device_class).
+    """
+    measurements = [
+        dataclasses.replace(r, unit="9999")
+        if r.metric == data.M_CO2 and r.sensor == data.AIR_SENSOR_ID
+        else r
+        for r in data.build_measurement_readings()
+    ]
+    client = build_mock_client(measurements=measurements)
+    await setup_integration(hass, mock_config_entry, client)
+
+    state = state_for(hass, "sensor", _uid(AIR, data.M_CO2))
+    assert float(state.state) == pytest.approx(612.0)
+    assert ATTR_UNIT_OF_MEASUREMENT not in state.attributes
+    assert ATTR_DEVICE_CLASS not in state.attributes
+
+
 async def test_battery_voltage_unit_promotes_to_voltage_class(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry
 ) -> None:
