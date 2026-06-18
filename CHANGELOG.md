@@ -4,6 +4,31 @@ All notable changes to **aranet-cloud-homeassistant** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.8.4 — 2026-06-18
+
+Test-coverage and CI hygiene from an audit follow-up. **No change to the
+integration's runtime behavior** — the shipped `custom_components/` code is
+unchanged apart from this version bump.
+
+- **Coordinator success path is now directly tested.** New tests exercise
+  `_async_update_data`'s snapshot construction, which the platform tests only
+  reached incidentally: catalog id-indexing, the `id_by_serial` map, the
+  `measurements ⊕ telemetry` readings union (including telemetry as
+  last-writer on a metric-key collision), the multi-alarm highest-severity
+  tie-break, and the empty-fleet build. Previously only the two
+  error-translation paths were covered.
+- **Stale-device prune now asserts the side effect.** A test confirms that
+  pruning a stale device also removes its entities from the registry — the
+  3-cycle hysteresis *decision* was already tested; the
+  `remove_config_entry_id` effect was not.
+- **Unknown-unit fallback is tested.** A reading whose unit id isn't in
+  `UNIT_BY_ID` renders the value with no unit label and no device class
+  (the README "unrecognised unit" contract).
+- **CI:** removed the auto-`/code-review` workflow that ran on every PR
+  (unintended; no-ops on fork PRs since GitHub withholds secrets there, and
+  redundant with the on-demand `@claude` workflow). Bumped the remaining
+  Claude workflow's `actions/checkout` to `v5` to match the other workflows.
+
 ## 0.8.3 — 2026-06-10
 
 Dependency bump: **aranet-cloud 0.2.0 → 0.2.1**.
