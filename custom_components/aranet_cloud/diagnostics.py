@@ -2,13 +2,15 @@
 
 Produces a JSON dump suitable for pasting into a GitHub issue. Includes:
 
-* Account context: scan interval, number of sensors / bases / active alarms
+* Config-entry + coordinator status: poll interval, last-update success, and
+  the last exception (so a failing poll's cause is in the dump, not only the log)
+* Counts: sensors / bases / readings / active alarms
 * Sensor + base catalog (full metadata)
 * Latest reading per (sensor × metric)
 * Active alarms
 
-Redacts: the API key and the salted-hash unique_id (which is derived from
-the key). Everything else is non-sensitive metadata about the user's setup.
+Redacts: the API key and the hashed unique_id (which is derived from the
+key). Everything else is non-sensitive metadata about the user's setup.
 """
 
 from __future__ import annotations
@@ -47,6 +49,24 @@ REDACT = {
     "Authorization",
     "apiKey",
 }
+
+
+def _describe_exception(exc: BaseException | None) -> str | None:
+    """Human-readable summary of the coordinator's last failure, with its cause.
+
+    The coordinator raises *translated* ``UpdateFailed`` / ``ConfigEntryAuthFailed``
+    whose ``str()`` is empty — the real API/network reason is the chained
+    ``__cause__`` (raised ``from err``). Surface both so a failing poll's cause
+    lands in the dump, not only the log. Aranet error messages never contain the
+    API key, and ``REDACT`` scrubs known sensitive keys defensively.
+    """
+    if exc is None:
+        return None
+    summary = f"{type(exc).__name__}: {exc}".rstrip(": ")
+    cause = exc.__cause__
+    if cause is not None:
+        summary += f" (caused by {type(cause).__name__}: {cause})"
+    return summary
 
 
 def _serialise(obj: Any) -> Any:
@@ -88,6 +108,7 @@ async def async_get_config_entry_diagnostics(
                     else None
                 ),
                 "last_update_success": coordinator.last_update_success,
+                "last_exception": _describe_exception(coordinator.last_exception),
             },
             "counts": {
                 "sensors": len(snapshot.sensors),

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import MagicMock
 
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
@@ -34,8 +35,36 @@ async def test_diagnostics_redacts_and_counts(
     assert len(result["sensors"]) == 2
     assert len(result["bases"]) == 1
 
+    # Healthy poll: success flag set, no captured exception.
+    assert result["coordinator"]["last_update_success"] is True
+    assert result["coordinator"]["last_exception"] is None
+
     # The raw key must not survive anywhere in the serialised payload.
     assert TEST_API_KEY not in json.dumps(result)
+
+
+async def test_diagnostics_captures_failure_cause(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+    mock_client: MagicMock,
+) -> None:
+    """After a failed refresh, the dump surfaces the chained failure cause.
+
+    The coordinator raises a translated UpdateFailed whose str() is empty; the
+    dump must still show the real reason (its __cause__) so a maintainer can
+    diagnose from the download alone.
+    """
+    from aranet_cloud import AranetError
+
+    coordinator = init_integration.runtime_data
+    mock_client.get_measurements_last.side_effect = AranetError("503 upstream")
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+
+    result = await async_get_config_entry_diagnostics(hass, init_integration)
+
+    assert result["coordinator"]["last_update_success"] is False
+    assert "503 upstream" in result["coordinator"]["last_exception"]
 
 
 def test_redact_set_covers_raw_payload_keys() -> None:

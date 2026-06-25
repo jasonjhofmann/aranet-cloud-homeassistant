@@ -2,7 +2,7 @@
 
 Polls measurements/last + telemetry/last + alarms/actual on every cycle, plus
 the catalog (sensors, bases) which changes much less often but is cheap to
-refetch alongside. Phase 3 keeps this as a single coordinator for simplicity;
+refetch alongside. This is deliberately a single coordinator for simplicity;
 splitting into fast/slow tiers is reserved for a later perf optimisation if
 ever needed.
 

@@ -413,6 +413,29 @@ async def test_battery_voltage_unit_promotes_to_voltage_class(
     assert state.attributes[ATTR_DEVICE_CLASS] == "voltage"
 
 
+async def test_battery_in_volts_raises_display_precision(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """Battery delivered in volts gets ≥2-decimal display precision.
+
+    The BATTERY description pins precision 0 (right for %); a volts reading at
+    precision 0 would round 2.95 → '3 V'. _MIN_PRECISION_BY_UNIT floors it.
+    """
+    telemetry = [
+        dataclasses.replace(r, unit="16", value=2.95)
+        if r.metric == data.M_BATTERY and r.sensor == data.AIR_SENSOR_ID
+        else r
+        for r in data.build_telemetry_readings()
+    ]
+    client = build_mock_client(telemetry=telemetry)
+    await setup_integration(hass, mock_config_entry, client)
+
+    ent_reg = er.async_get(hass)
+    entity_id = ent_reg.async_get_entity_id("sensor", DOMAIN, _uid(AIR, data.M_BATTERY))
+    options = ent_reg.async_get(entity_id).options.get("sensor", {})
+    assert options.get("suggested_display_precision") == 2
+
+
 # ---------------------------------------------------------------------------
 # Base staleness — Base.last_seen gates the base-bound firmware sensor
 # ---------------------------------------------------------------------------

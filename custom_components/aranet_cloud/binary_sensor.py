@@ -57,7 +57,7 @@ async def async_setup_entry(
     coordinator: AranetCoordinator = entry.runtime_data
     # Per-entity keys whose entity object currently exists in HA. As in
     # sensor.py: a key is discarded only when the entity is actually removed
-    # (stale-device prune, or an aborted add), never on mere skill
+    # (stale-device prune, or an aborted add), never on mere metric
     # deactivation — re-activation must not re-add an existing unique_id.
     known: set[str] = set()
 

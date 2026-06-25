@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Generator, Iterator
 from contextlib import contextmanager
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, create_autospec, patch
 
 import pytest
-from aranet_cloud import Links
+from aranet_cloud import AranetCloudClient, Links
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import entity_registry as er
@@ -55,27 +55,28 @@ def build_mock_client(
     telemetry: list | None = None,
     alarms: list | None = None,
 ) -> MagicMock:
-    """A MagicMock standing in for ``AranetCloudClient`` with async methods."""
-    client = MagicMock()
-    client.get_sensors = AsyncMock(
-        return_value=data.build_sensors() if sensors is None else sensors
+    """An autospec'd stand-in for ``AranetCloudClient``.
+
+    ``create_autospec`` builds the mock from the real (installed) client class,
+    so a method renamed/removed in the pinned ``aranet-cloud`` — or called with
+    a bad signature — fails the suite at fixture build instead of passing green
+    and only blowing up in production. Its async methods are AsyncMocks; we set
+    their awaited results via ``.return_value``.
+    """
+    client = create_autospec(AranetCloudClient, instance=True)
+    client.get_sensors.return_value = (
+        data.build_sensors() if sensors is None else sensors
     )
-    client.get_bases = AsyncMock(
-        return_value=[data.build_base()] if bases is None else bases
+    client.get_bases.return_value = [data.build_base()] if bases is None else bases
+    client.get_measurements_last.return_value = (
+        data.build_measurement_readings() if measurements is None else measurements,
+        Links(),
     )
-    client.get_measurements_last = AsyncMock(
-        return_value=(
-            data.build_measurement_readings() if measurements is None else measurements,
-            Links(),
-        )
+    client.get_telemetry_last.return_value = (
+        data.build_telemetry_readings() if telemetry is None else telemetry,
+        Links(),
     )
-    client.get_telemetry_last = AsyncMock(
-        return_value=(
-            data.build_telemetry_readings() if telemetry is None else telemetry,
-            Links(),
-        )
-    )
-    client.get_alarms_actual = AsyncMock(return_value=[] if alarms is None else alarms)
+    client.get_alarms_actual.return_value = [] if alarms is None else alarms
     return client
 
 
@@ -87,7 +88,7 @@ def mock_client() -> MagicMock:
 
 @pytest.fixture
 def mock_config_entry() -> MockConfigEntry:
-    """A config entry whose unique_id matches the test key's salted hash."""
+    """A config entry whose unique_id matches the test key's account hash."""
     return MockConfigEntry(
         domain=DOMAIN,
         title="Aranet-1a2b3c",

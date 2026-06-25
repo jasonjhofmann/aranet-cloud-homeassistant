@@ -19,9 +19,10 @@ that aren't in BLE range of your HA host.
 - **Sensors** for each supported metric your sensors report:
   temperature, humidity, CO₂, atmospheric pressure, volumetric water
   content, soil + pore electrical conductivity, soil dielectric permittivity,
-  vapour-pressure deficit, day light integral, RSSI (signal), battery.
-  (See [Supported metrics](https://github.com/jasonjhofmann/aranet-cloud-homeassistant#supported-metrics) — unrecognised metrics aren't
-  surfaced yet.)
+  vapour-pressure deficit, day light integral, voltage, weight, distance,
+  differential pressure, radon, fraction, RSSI (signal), and battery.
+  (See [Supported metrics](https://github.com/jasonjhofmann/aranet-cloud-homeassistant#supported-metrics) — coverage is
+  complete against the current Aranet Cloud catalog.)
 - **Binary sensors** for the built-in Aranet alarm rules: per-sensor low
   battery, per-base-station offline.
 - **Diagnostic entity** per base station showing firmware version.
@@ -247,6 +248,10 @@ proactively, use the integration entry's **⋮ → Reconfigure** action.
   base-offline rules are not yet surfaced as binary sensors.
 - **Units follow your Aranet account preference** (°C vs °F, hPa vs mmHg,
   etc.); Home Assistant's own unit conversion can override the display.
+- **Bundled brand icons need HA 2026.3+.** The integration itself runs on
+  HA 2025.1+ (the `hacs.json` floor); the in-repo Aranet icon/logo are served
+  by Home Assistant's local Brands Proxy, which only exists on HA 2026.3+. On
+  older cores the integration is fully functional but shows a generic icon.
 
 ## Troubleshooting
 
@@ -327,8 +332,8 @@ client library's retry/timeout attempts; credentials never appear in logs.
 ## Architecture
 
 - Backed by [`aranet-cloud`](https://github.com/jasonjhofmann/aranet-cloud),
-  a standalone async Python library covering the full 27-endpoint API
-  surface. Reusable outside Home Assistant.
+  a standalone async Python library wrapping the Aranet Cloud REST API
+  (25 of its 27 read-only GET endpoints). Reusable outside Home Assistant.
 - Single `DataUpdateCoordinator` polls measurements, telemetry, and
   alarms each cycle; base + sensor catalogs are refreshed in the same
   cycle (cheap, stable).
