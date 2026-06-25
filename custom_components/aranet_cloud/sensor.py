@@ -70,6 +70,19 @@ _DEVICE_CLASS_BY_UNIT: dict[str, SensorDeviceClass] = {
     "mV": SensorDeviceClass.VOLTAGE,
 }
 
+# Some metrics declare a static ``suggested_display_precision`` tuned for their
+# default unit, but the account's display preference can deliver the value in a
+# much smaller-magnitude unit (battery telemetry in V instead of %, atmospheric
+# pressure in atm/bar instead of hPa). Rounding those at the default precision
+# collapses the reading to a useless value (3.7 V → "4 V", 0.97 atm → "1.0").
+# This is a per-unit display-precision *floor*; native_value — and therefore
+# long-term statistics — is unaffected.
+_MIN_PRECISION_BY_UNIT: dict[str, int] = {
+    "V": 2,
+    "atm": 3,
+    "bar": 3,
+}
+
 
 def _effective_device_class(
     declared: SensorDeviceClass | None, unit: str | None
@@ -282,7 +295,7 @@ async def async_setup_entry(
     # Per-entity keys whose entity object currently exists in HA. A key is
     # added when the entity is created and discarded only when the entity is
     # actually removed (stale-device prune, or an aborted add) — NOT when its
-    # skill merely flips inactive. A deactivated metric keeps its entity and
+    # metric merely flips inactive. A deactivated metric keeps its entity and
     # its key, so a later re-activation doesn't call async_add_entities again
     # with an already-registered unique_id ("ID … already exists" registry
     # errors on every occurrence).
@@ -326,9 +339,14 @@ async def async_setup_entry(
                     skip_key = f"{sensor.serial}_{metric_id}"
                     if skip_key not in logged_skips:
                         logged_skips.add(skip_key)
-                        _LOGGER.debug(
+                        # INFO (once per sensor×metric, deduped via logged_skips):
+                        # this is a user-actionable "your sensor reports data we
+                        # don't render yet" cue, surfaced without requiring debug
+                        # logging — matching the device-prune INFO in __init__.
+                        _LOGGER.info(
                             "Sensor %s reports metric id %s, which this "
-                            "integration doesn't render yet — skipping",
+                            "integration doesn't render yet — skipping (please "
+                            "open an issue so it can be added)",
                             sensor.serial,
                             metric_id,
                         )
@@ -421,6 +439,24 @@ class AranetMetricSensor(CoordinatorEntity["AranetCoordinator"], SensorEntity):
         return _effective_device_class(
             self.entity_description.device_class, unit_for_id(reading.unit) or None
         )
+
+    @property
+    def suggested_display_precision(self) -> int | None:
+        """Display precision, raised for small-magnitude account-preference units.
+
+        See :data:`_MIN_PRECISION_BY_UNIT`: a battery delivered in volts or a
+        pressure in atm/bar needs more decimals than the metric's default
+        precision (tuned for % / hPa) or it collapses to a useless integer.
+        ``native_value`` (and long-term statistics) is unchanged — display only.
+        """
+        static = self.entity_description.suggested_display_precision
+        reading = self._reading()
+        if reading is None:
+            return static
+        floor = _MIN_PRECISION_BY_UNIT.get(unit_for_id(reading.unit) or "")
+        if floor is None:
+            return static
+        return floor if static is None else max(static, floor)
 
     @property
     def available(self) -> bool:

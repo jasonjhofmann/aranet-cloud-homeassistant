@@ -2,7 +2,7 @@
 
 User pastes an API key; we validate it by calling ``get_sensors()`` and
 ``get_bases()``, then create one entry per account (deduplicated via a
-salted-hash ``unique_id`` so the raw key never lands in HA's registry).
+hashed ``unique_id`` so the raw key never lands in HA's registry).
 
 There is no OptionsFlow — HA Core convention says the integration owns its
 poll cadence, so :data:`~.const.DEFAULT_SCAN_INTERVAL` is not user-tunable.
@@ -72,7 +72,7 @@ class AranetCloudConfigFlow(ConfigFlow, domain=DOMAIN):
         """Let the user swap in a new API key without removing the entry.
 
         We can't verify the new key belongs to the *same* account (the
-        config-entry ``unique_id`` is a salted hash of the key itself —
+        config-entry ``unique_id`` is a SHA-256 hash of the key itself —
         Aranet exposes no stable account ID), so a rotated key necessarily
         produces a different hash. We validate the key, guard against the
         new hash colliding with a *different* already-configured entry, and
@@ -90,7 +90,7 @@ class AranetCloudConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.warning("Aranet validation failed: %s", err)
                 errors["base"] = "cannot_connect"
             else:
-                # The unique_id is a salted hash of the key, so a rotated key
+                # The unique_id is a SHA-256 hash of the key, so a rotated key
                 # must re-derive it — otherwise duplicate-account protection
                 # tests new setups against the OLD key's hash forever. But if
                 # ANOTHER entry already owns the new hash (the same account
@@ -132,7 +132,10 @@ class AranetCloudConfigFlow(ConfigFlow, domain=DOMAIN):
                 await self._validate(api_key)
             except AranetAuthError:
                 errors["base"] = "invalid_auth"
-            except AranetError:
+            except AranetError as err:
+                # Match async_step_user / async_step_reconfigure: log the cause
+                # so a reauth that keeps failing to connect leaves a trail.
+                _LOGGER.warning("Aranet validation failed: %s", err)
                 errors["base"] = "cannot_connect"
             else:
                 existing = self._get_reauth_entry()
@@ -183,10 +186,14 @@ class AranetCloudConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 def _account_id(api_key: str) -> str:
-    """Stable per-account identifier derived from the key (one-way, salted).
+    """Stable per-account identifier derived from the key (one-way SHA-256).
 
     HA's config-entry unique_id needs *something* per-account to deduplicate
     repeated setups. The API doesn't expose an account ID, and we don't want
-    the raw key in HA's storage. SHA-256 with a salt fits the bill.
+    the raw key in HA's storage. A SHA-256 digest over a static
+    ``aranet_cloud::`` domain-separation prefix plus the key fits the bill: the
+    prefix namespaces the digest to this integration — it is not a secret salt
+    (it's source-visible), so the key's own entropy is what makes the digest
+    infeasible to reverse.
     """
     return hashlib.sha256(f"aranet_cloud::{api_key}".encode()).hexdigest()[:32]

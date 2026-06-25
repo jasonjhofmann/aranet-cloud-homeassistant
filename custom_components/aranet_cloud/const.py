@@ -1,9 +1,11 @@
 """Constants for the Aranet Cloud integration.
 
 Includes the metric and unit ID catalogs that drive the sensor + binary_sensor
-platforms — both are exhaustive against the Aranet Cloud API as of Phase 0
-research (see ``docs/architecture.md`` in the ``aranet-cloud`` library repo
-for ground truth).
+platforms. Both cover every metric and unit observed in the Aranet Cloud
+``GET /api/v1/metrics`` catalog to date (see ``docs/architecture.md`` in the
+``aranet-cloud`` library repo for the enumeration); unknown IDs degrade
+gracefully — an unmodelled metric is skipped and an unmapped unit renders the
+value without a unit label rather than failing.
 """
 
 from __future__ import annotations
@@ -102,7 +104,7 @@ UNIT_BY_ID: Final[dict[str, str]] = {
     # day light integral
     "22": "µmol/m²/d",
     "140": "mol/m²/d",
-    "142": "mol/m2/d",
+    "142": "mol/m²/d",
     # voltage (analog-input metric)
     "5": "V",
     "125": "mV",
@@ -131,9 +133,3 @@ UNIT_BY_ID: Final[dict[str, str]] = {
 def unit_for_id(unit_id: str, fallback: str = "") -> str:
     """Look up an Aranet unit ID; return ``fallback`` when unknown."""
     return UNIT_BY_ID.get(unit_id, fallback)
-
-
-# Built-in alarm rule metric IDs — the two rules every Aranet account has
-# out of the box. User-created rules can target any metric and are handled
-# generically by the binary_sensor platform.
-BUILTIN_ALARM_METRICS: Final = frozenset({Metric.BATTERY, Metric.BASE_STATUS})

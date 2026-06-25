@@ -4,6 +4,56 @@ All notable changes to **aranet-cloud-homeassistant** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.8.6 — 2026-06-25
+
+Polish and robustness from a full-repo review. No change for the common case;
+all entity/device contracts are unchanged.
+
+### Fixed
+
+- **Display precision now adapts to account-preference units.** A battery
+  reported in volts (or atmospheric pressure in atm/bar) no longer rounds to a
+  useless integer (3.7 V → "4 V", 0.97 atm → "1.0"): a per-unit precision floor
+  mirrors the existing dynamic device-class/unit handling. `native_value` and
+  long-term statistics are unaffected.
+- **Reauth connection failures are now logged** like the initial-setup and
+  reconfigure flows — previously a `cannot_connect` during reauth left no trail.
+- Day-light-integral unit id 142 renders as `mol/m²/d` (was the ASCII
+  `mol/m2/d`), so the same physical unit canonicalises to one string.
+- Base-station `DeviceInfo` is defined once and reused by both the device
+  registration and the entities, so the two can't drift.
+
+### Added
+
+- Diagnostics now include the coordinator's **last-update success flag and the
+  last failure's cause** (the chained exception behind the translated
+  `UpdateFailed`), so a failing poll can be diagnosed from the download alone.
+  The API key is never included.
+- The "unmodelled metric — skipping" notice is logged at **INFO** (still deduped,
+  once per sensor × metric) so the documented "open an issue" cue is visible
+  without enabling debug logging.
+
+### Changed
+
+- The test client is now `create_autospec`'d against the real `aranet-cloud`
+  class, so a renamed/removed library method fails the suite instead of passing
+  green and only breaking in production. New tests pin the `via_device` device
+  hierarchy, the volts display-precision floor, and the diagnostics
+  failure-cause field (67 tests, **100% coverage**).
+- CI `astral-sh/setup-uv` bumped `v3` → `v6` (off the aging Node-20 runtime).
+- Removed the unused `BUILTIN_ALARM_METRICS` constant.
+
+### Docs
+
+- README "What you get" now lists all 18 rendered metrics (was missing voltage,
+  weight, distance, differential pressure, radon, fraction); added a Known
+  Limitations note that bundled brand icons require HA 2026.3+ while the
+  integration runs on HA 2025.1+; corrected the backing-library endpoint count
+  to 25 of 27. Fixed stale `copilot-instructions` claims (current-only readings;
+  Python 3.12+ floor) and several source comments ("salt" → static
+  domain-separation prefix; dropped the internal "Phase 0/3" provenance;
+  diagnostics "scan interval" → "poll interval"; "skill" → "metric").
+
 ## 0.8.5 — 2026-06-25
 
 Dependency bump: **aranet-cloud 0.2.1 → 0.2.2**.

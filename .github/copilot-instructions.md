@@ -1,6 +1,6 @@
 # GitHub Copilot & Claude Code Instructions
 
-This repository contains a custom Home Assistant integration for Aranet Cloud — pulls historical and current readings from Aranet's cloud API for fleets of Aranet4 / Aranet Radon+ sensors. Companion library lives at https://github.com/jasonjhofmann/aranet-cloud.
+This repository contains a custom Home Assistant integration for Aranet Cloud — polls current/last readings and alarm state from Aranet's cloud API for fleets of Aranet4 / Aranet Radon+ sensors. Companion library lives at https://github.com/jasonjhofmann/aranet-cloud.
 
 ## Integration Quality Scale
 
@@ -53,7 +53,7 @@ rules:
 
 ## Python Requirements
 
-- **Compatibility**: Python 3.13+
+- **Compatibility**: Python 3.12+ (the support floor — HA 2025.1 runs on 3.12; see `pyproject.toml` ruff `target-version`)
 - **Language Features**: Use the newest features when possible:
   - Pattern matching
   - Type hints

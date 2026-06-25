@@ -33,8 +33,9 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from aranet_cloud import AranetCloudClient
 
-from .const import DOMAIN, MANUFACTURER
+from .const import DOMAIN
 from .coordinator import AranetCoordinator
+from .sensor import _base_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -100,17 +101,17 @@ async def async_unload_entry(hass: HomeAssistant, entry: AranetConfigEntry) -> b
 def _register_base_devices(
     hass: HomeAssistant, entry: AranetConfigEntry, coordinator: AranetCoordinator
 ) -> None:
-    """Create/update a device for every base station in the snapshot."""
+    """Create/update a device for every base station in the snapshot.
+
+    Reuses :func:`~.sensor._base_device_info` so the base ``DeviceInfo`` is
+    defined in exactly one place — the entities attach the same dict, and the
+    two cannot drift and flap the device registry between representations.
+    """
     device_reg = dr.async_get(hass)
     for base in coordinator.data.bases.values():
         device_reg.async_get_or_create(
             config_entry_id=entry.entry_id,
-            identifiers={(DOMAIN, f"base_{base.id}")},
-            name=base.name or f"Aranet base {base.id}",
-            manufacturer=MANUFACTURER,
-            model=base.product or "Aranet Base",
-            sw_version=base.firmware or None,
-            serial_number=base.id,
+            **_base_device_info(base),
         )
 
 

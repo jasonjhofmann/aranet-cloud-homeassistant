@@ -48,6 +48,27 @@ async def test_base_device_pre_registered(
     assert base_device.serial_number == data.BASE_ID
 
 
+async def test_sensor_device_nests_under_base_via_device(
+    hass: HomeAssistant, init_integration: MockConfigEntry
+) -> None:
+    """Sensor devices link to their base through via_device.
+
+    This is the whole reason bases are pre-registered before the platforms
+    forward; asserting the actual parent link (not just the identifiers) so a
+    regression that flattens the device hierarchy can't pass silently.
+    """
+    device_reg = dr.async_get(hass)
+    base_device = device_reg.async_get_device(
+        identifiers={(DOMAIN, f"base_{data.BASE_ID}")}
+    )
+    sensor_device = device_reg.async_get_device(
+        identifiers={(DOMAIN, data.AIR_SENSOR_SERIAL)}
+    )
+    assert base_device is not None
+    assert sensor_device is not None
+    assert sensor_device.via_device_id == base_device.id
+
+
 async def test_setup_auth_failure_triggers_reauth(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry
 ) -> None:
