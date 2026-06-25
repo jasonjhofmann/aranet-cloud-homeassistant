@@ -37,7 +37,7 @@ jobs:
             --with homeassistant \
             --with aiohttp \
             --with voluptuous \
-            --with "aranet-cloud==0.2.1" \
+            --with "aranet-cloud==0.2.2" \
             mypy custom_components/aranet_cloud/
 
   # Guards the declared support floor (hacs.json: HA 2025.1 = Python 3.12).
@@ -72,7 +72,7 @@ jobs:
           uv run --python ${{ matrix.python-version }} \
             --with pytest-homeassistant-custom-component \
             --with pytest-cov \
-            --with "aranet-cloud==0.2.1" \
+            --with "aranet-cloud==0.2.2" \
             python -m pytest tests/ -v \
               --cov=custom_components.aranet_cloud \
               --cov-report=term-missing \

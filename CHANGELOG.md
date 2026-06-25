@@ -4,6 +4,25 @@ All notable changes to **aranet-cloud-homeassistant** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.8.5 — 2026-06-25
+
+Dependency bump: **aranet-cloud 0.2.1 → 0.2.2**.
+
+- **Library robustness/security hardening, transparent to the integration.**
+  aranet-cloud 0.2.2 clamps a server-supplied `Retry-After` to the 30 s
+  backoff cap — closing a path where a large value (e.g. a Cloudflare 429)
+  made the client `await` for hours and silently wedged this integration's
+  `DataUpdateCoordinator` poll. It also coerces malformed integer/float fields
+  defensively (no bare `ValueError`/`TypeError` escaping `AranetError`),
+  guards the 400 error-body parse against a non-object `error[]` item,
+  converts timezone-aware datetimes to UTC before sending `from`/`to`, and
+  sets `allow_redirects=False` on JSON requests so a server redirect cannot
+  re-send the `ApiKey` to a foreign origin. Every surfaced failure remains an
+  `AranetError` subclass, which the coordinator already maps to `UpdateFailed`
+  (and the config flow to *cannot connect*) — no integration-side changes
+  required.
+- CI dependency pins updated to `aranet-cloud==0.2.2`.
+
 ## 0.8.4 — 2026-06-18
 
 Test-coverage and CI hygiene from an audit follow-up. **No change to the
