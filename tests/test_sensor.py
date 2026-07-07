@@ -449,9 +449,7 @@ async def test_radon_in_pci_l_raises_display_precision(
     precision (so numeric_state radon automations still fire correctly).
     """
     readings = [
-        dataclasses.replace(r, unit="143", value=4.4)
-        if r.metric == data.M_RADON
-        else r
+        dataclasses.replace(r, unit="143", value=4.4) if r.metric == data.M_RADON else r
         for r in data.build_specialty_readings()
     ]
     client = build_mock_client(
