@@ -436,6 +436,63 @@ async def test_battery_in_volts_raises_display_precision(
     assert options.get("suggested_display_precision") == 2
 
 
+async def test_radon_in_pci_l_raises_display_precision(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """Radon delivered in pCi/L keeps ≥1 decimal of display precision.
+
+    Health-relevant: the RADON description pins precision 0 (right for
+    whole-number Bq/m³), but a US account delivers radon in pCi/L (unit id
+    143, ~0.4–20 range). At precision 0 both 3.6 and 4.4 pCi/L render as '4',
+    collapsing the decimal that straddles the EPA 4.0 pCi/L action level.
+    _MIN_PRECISION_BY_UNIT floors pCi/L to 1 decimal; native_value keeps full
+    precision (so numeric_state radon automations still fire correctly).
+    """
+    readings = [
+        dataclasses.replace(r, unit="143", value=4.4)
+        if r.metric == data.M_RADON
+        else r
+        for r in data.build_specialty_readings()
+    ]
+    client = build_mock_client(
+        sensors=[data.build_specialty_sensor()],
+        measurements=readings,
+        telemetry=[],
+    )
+    await setup_integration(hass, mock_config_entry, client)
+    ser = data.SPECIALTY_SENSOR_SERIAL
+
+    # The unit renders as pCi/L and native_value retains the full value.
+    state = state_for(hass, "sensor", _uid(ser, data.M_RADON))
+    assert state.attributes[ATTR_UNIT_OF_MEASUREMENT] == "pCi/L"
+    assert float(state.state) == pytest.approx(4.4)
+
+    # The entity-registry display-precision option is floored to ≥1 decimal.
+    ent_reg = er.async_get(hass)
+    entity_id = ent_reg.async_get_entity_id("sensor", DOMAIN, _uid(ser, data.M_RADON))
+    options = ent_reg.async_get(entity_id).options.get("sensor", {})
+    assert options.get("suggested_display_precision") == 1
+
+
+def test_metric_registry_key_matches_metric_id() -> None:
+    """Each dict key must equal its row's ``metric_id`` — they can never diverge.
+
+    async_setup_entry looks descriptions up by the dict *key*
+    (``METRIC_REGISTRY.get(metric_id)``), while the entity resolves its reading
+    and mints its unique_id from ``description.metric_id``. A divergent row (a
+    trivial copy-paste slip when adding a metric) would fetch the wrong reading
+    and mint a wrong/duplicate unique_id — a silent, health-value bug. Guard it.
+    """
+    from custom_components.aranet_cloud.sensor import METRIC_REGISTRY
+
+    mismatched = {
+        key: desc.metric_id
+        for key, desc in METRIC_REGISTRY.items()
+        if key != desc.metric_id
+    }
+    assert not mismatched, f"key ≠ metric_id for: {mismatched}"
+
+
 # ---------------------------------------------------------------------------
 # Base staleness — Base.last_seen gates the base-bound firmware sensor
 # ---------------------------------------------------------------------------

@@ -8,9 +8,12 @@ new metric is a single-row change.
 Base stations also get diagnostic entities (firmware version) so users can
 see the gateway health at a glance.
 
-Entity-id stability: ``unique_id`` is always ``{domain}_{sensor_serial}_{metric_id}``
-or ``{domain}_base_{base_id}_{key}``. The sensor serial is the hex code
-printed on the device — it survives any cloud-side rekeying.
+Entity-id stability: per-sensor ``unique_id`` is always
+``{domain}_{sensor_serial}_{metric_id}`` — the sensor serial is the hex code
+printed on the device, so those entities survive any cloud-side rekeying.
+Base-station entities key on the cloud ``base.id``
+(``{domain}_base_{base_id}_{key}``); the Base model exposes no printed serial,
+so a base delete/re-add (new cloud id) re-creates its firmware/offline entities.
 """
 
 from __future__ import annotations
@@ -73,14 +76,19 @@ _DEVICE_CLASS_BY_UNIT: dict[str, SensorDeviceClass] = {
 # Some metrics declare a static ``suggested_display_precision`` tuned for their
 # default unit, but the account's display preference can deliver the value in a
 # much smaller-magnitude unit (battery telemetry in V instead of %, atmospheric
-# pressure in atm/bar instead of hPa). Rounding those at the default precision
-# collapses the reading to a useless value (3.7 V → "4 V", 0.97 atm → "1.0").
-# This is a per-unit display-precision *floor*; native_value — and therefore
-# long-term statistics — is unaffected.
+# pressure in atm/bar instead of hPa, radon in pCi/L instead of Bq/m³). Rounding
+# those at the default precision collapses the reading to a useless value
+# (3.7 V → "4 V", 0.97 atm → "1.0", and — health-critically — 3.6 vs 4.4 pCi/L
+# radon both to "4", hiding the decimal straddling the EPA 4.0 pCi/L action
+# level). This is a per-unit display-precision *floor*; native_value — and
+# therefore long-term statistics — is unaffected.
 _MIN_PRECISION_BY_UNIT: dict[str, int] = {
     "V": 2,
     "atm": 3,
     "bar": 3,
+    # Radon: consumer/EPA reporting is universally to 1 decimal (0.1 pCi/L
+    # steps); precision 0 would round both sides of the 4.0 action level to "4".
+    "pCi/L": 1,
 }
 
 
@@ -125,7 +133,11 @@ class AranetMetricDescription(SensorEntityDescription):
 
 # All currently-supported metrics. Adding a new one is one row.
 # state_class defaults to MEASUREMENT (the only sensible choice for the
-# current-value entities here); ``key`` becomes the entity-id suffix.
+# current-value entities here). With has_entity_name + an explicit unique_id +
+# a translation_key, ``key`` is only the (mandatory) EntityDescription id — it
+# drives neither the unique_id (set literally below) nor the entity_id (whose
+# suffix comes from the translated name); translation_key and unique_id are the
+# real stability anchors.
 METRIC_REGISTRY: dict[str, AranetMetricDescription] = {
     Metric.TEMPERATURE: AranetMetricDescription(
         metric_id=Metric.TEMPERATURE,
@@ -444,9 +456,10 @@ class AranetMetricSensor(CoordinatorEntity["AranetCoordinator"], SensorEntity):
     def suggested_display_precision(self) -> int | None:
         """Display precision, raised for small-magnitude account-preference units.
 
-        See :data:`_MIN_PRECISION_BY_UNIT`: a battery delivered in volts or a
-        pressure in atm/bar needs more decimals than the metric's default
-        precision (tuned for % / hPa) or it collapses to a useless integer.
+        See :data:`_MIN_PRECISION_BY_UNIT`: a battery delivered in volts, a
+        pressure in atm/bar, or radon in pCi/L needs more decimals than the
+        metric's default precision (tuned for % / hPa / Bq/m³) or it collapses
+        to a useless integer.
         ``native_value`` (and long-term statistics) is unchanged — display only.
         """
         static = self.entity_description.suggested_display_precision

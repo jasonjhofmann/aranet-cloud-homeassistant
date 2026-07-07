@@ -29,9 +29,9 @@ that aren't in BLE range of your HA host.
 - **Unit preservation** — values arrive in whatever units your Aranet
   account is configured to display (°F vs °C, mmHg vs hPa, etc.). Home
   Assistant's built-in conversions still work if you prefer something else.
-- **Fixed 60-second poll cadence**, matching Aranet sensors' 60 s sample
-  rate. Not user-configurable per HA Core conventions — the integration
-  owns its cadence.
+- **Fixed 60-second poll cadence**, keeping pace with Aranet's fastest
+  (1-minute) reporting interval. Not user-configurable per HA Core
+  conventions — the integration owns its cadence.
 - **Reauth flow** on revoked or rotated API keys.
 - **Diagnostics download** with the API key automatically redacted —
   paste into a GitHub issue if something looks off.
@@ -171,8 +171,11 @@ data is written to your Aranet account.
 | `binary_sensor` | Low battery | `battery` | `on` = low |
 | `binary_sensor` | Base station | `connectivity` | `on` = connected |
 
-All `unique_id`s use the **device-printed hex serial** (e.g. `0AB12`),
-not the cloud numeric ID — so entity IDs survive any cloud-side rekeying.
+Per-sensor `unique_id`s use the **device-printed hex serial** (e.g. `0AB12`),
+not the cloud numeric ID — so those entity IDs survive any cloud-side
+rekeying. The two base-station entities (base firmware, base station offline)
+key on the cloud-assigned base ID instead, so they re-key if a base is deleted
+and re-registered in Aranet Cloud.
 
 ## Example automations
 
@@ -214,14 +217,19 @@ automation:
 The integration **polls** Aranet Cloud once every **60 seconds** through a
 single `DataUpdateCoordinator` shared by all entities — one set of API calls
 per cycle (`measurements/last`, `telemetry/last`, `alarms/actual`, plus the
-sensor and base catalogs), not one per entity. Aranet sensors themselves
-report to the cloud roughly once a minute, so a faster cadence returns no
-new data; the interval is fixed and not user-configurable.
+sensor and base catalogs), not one per entity. Aranet sensors report to the
+cloud on a per-sensor interval you set in the Aranet app (as fast as 1 minute,
+up to 10), so polling every 60 s keeps pace with even the fastest setting and a
+tighter cadence returns no new data. The integration's own poll interval is
+fixed and not user-configurable, per HA Core conventions.
 
 When a sensor newly appears in your account it gains entities on the next
 poll; when one is removed from the account, its device is pruned
-automatically. If the API key is rejected mid-run, all entities go
-`unavailable` and a reauthentication prompt appears.
+automatically. An individual entity also goes `unavailable` once its latest
+reading (or a base station's last check-in) is more than ~20 minutes old, so a
+dead or out-of-range sensor stops presenting its last value as live. If the API
+key is rejected mid-run, all entities go `unavailable` and a reauthentication
+prompt appears.
 
 ## Configuration
 
@@ -278,6 +286,13 @@ proactively, use the integration entry's **⋮ → Reconfigure** action.
 - The Aranet sensors themselves go silent when out of range of their base
   station. Enable the per-sensor **Signal strength** entity (it's a
   diagnostic, disabled by default) to watch for a weak signal.
+- **A single entity is `unavailable` while its siblings are fine.** Each
+  entity independently goes `unavailable` once its most recent reading is more
+  than ~20 minutes old (a flat battery, or a sensor out of range of its base) —
+  even while the coordinator keeps polling successfully and the tile shows no
+  error. This is deliberate: a stale reading is suppressed rather than shown as
+  a live value, so one lone `unavailable` entity points at that specific
+  sensor, not the cloud connection.
 
 ### Enabling debug logs
 

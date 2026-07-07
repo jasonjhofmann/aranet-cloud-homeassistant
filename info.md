@@ -16,12 +16,14 @@ Assistant — including ones that aren't in Bluetooth range of the HA host.
 - Surfaces Aranet's built-in alarm rules (Low battery, Base station
   offline) as `binary_sensor` entities
 - Adds a diagnostic firmware entity to each base station
-- Polls on a fixed 60-second cadence (matching Aranet's own sample rate)
+- Polls on a fixed 60-second cadence (keeping pace with Aranet's fastest
+  1-minute reporting interval)
 - Adds entities for sensors that appear later, and removes devices the
   account stops reporting — automatically
 - Provides reauth (key rotated/revoked) and reconfigure (change the key)
   flows, plus a Diagnostics download with credentials auto-redacted
-- Platinum quality scale: fully async, strict-typed, 100% test coverage
+- Platinum quality scale: fully async, strict-typed, CI-gated at ≥95% test
+  coverage (100% today)
 
 ## What it doesn't do
 

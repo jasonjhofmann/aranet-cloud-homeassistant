@@ -123,6 +123,36 @@ async def test_low_battery_without_reading_stays_available(
     assert state_for(hass, "binary_sensor", LOW_BATT_AIR).state == STATE_OFF
 
 
+async def test_low_battery_on_when_reading_stale_but_alarm_active(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """A live low-battery alarm wins over a stale reading — never masked.
+
+    The dying-battery endgame: a sensor's last battery telemetry can predate
+    the alarm's propagation (or an HA restart brings the entity up while the
+    sensor is already dark), so the reading is stale exactly when the alarm
+    is firing. Availability must not swallow the active alarm as
+    ``unavailable`` — a ``to: "on"`` notification automation would then never
+    fire on a confirmed-dead battery. Fail toward surfacing the alert.
+    """
+    from custom_components.aranet_cloud.sensor import READING_MAX_AGE
+
+    stale_time = data.FIXED_TIME - READING_MAX_AGE - timedelta(minutes=1)
+    telemetry = [
+        dataclasses.replace(r, time=stale_time)
+        if r.metric == data.M_BATTERY and r.sensor == data.AIR_SENSOR_ID
+        else r
+        for r in data.build_telemetry_readings()
+    ]
+    client = build_mock_client(
+        telemetry=telemetry, alarms=[data.build_low_battery_alarm()]
+    )
+    await setup_integration(hass, mock_config_entry, client)
+
+    # Stale reading + active alarm → on, NOT unavailable.
+    assert state_for(hass, "binary_sensor", LOW_BATT_AIR).state == STATE_ON
+
+
 async def test_base_offline_not_gated_on_stale_last_seen(
     hass: HomeAssistant, mock_config_entry: MockConfigEntry
 ) -> None:
@@ -141,6 +171,90 @@ async def test_base_offline_not_gated_on_stale_last_seen(
 
     # off = disconnected (connectivity class, inverted) — NOT unavailable.
     assert state_for(hass, "binary_sensor", BASE_OFFLINE).state == STATE_OFF
+
+
+async def test_base_offline_off_when_dark_without_alarm(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """A demonstrably-dark base reports disconnected even with no offline alarm.
+
+    ``Base.last_seen`` past READING_MAX_AGE means the base is dark. Without a
+    fallback, is_on would assert on/"connected" purely because the cloud
+    hasn't raised (or the account never configured) the built-in offline rule
+    — false reassurance on the exact condition this entity exists to report.
+    """
+    from custom_components.aranet_cloud.sensor import READING_MAX_AGE
+
+    base = data.build_base()
+    base.last_seen = data.FIXED_TIME - READING_MAX_AGE - timedelta(minutes=1)
+    client = build_mock_client(bases=[base])  # no offline alarm
+    await setup_integration(hass, mock_config_entry, client)
+
+    assert state_for(hass, "binary_sensor", BASE_OFFLINE).state == STATE_OFF
+
+
+async def test_base_offline_on_when_base_lacks_last_seen(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """No alarm and no ``last_seen`` timestamp → benefit of the doubt (connected).
+
+    Matches the staleness convention used elsewhere: with no timestamp to
+    judge and the (poll-fresh) alarm feed clear, the live feed wins.
+    """
+    base = data.build_base()
+    base.last_seen = None
+    client = build_mock_client(bases=[base])  # no offline alarm
+    await setup_integration(hass, mock_config_entry, client)
+
+    assert state_for(hass, "binary_sensor", BASE_OFFLINE).state == STATE_ON
+
+
+async def test_base_offline_unavailable_when_base_vanishes_from_snapshot(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """A vanished base goes unavailable — never a false 'connected' recovery.
+
+    When the base drops out of the snapshot (prune grace after removal, or a
+    transient ``bases=[]`` hiccup) its per-base offline alarm drops out too,
+    so is_on would otherwise flip from off(disconnected) to on(connected) —
+    firing the README's ``to: "off"`` → back-``on`` recovery automation on a
+    base station that is actually gone. Gate on base presence instead.
+    """
+    # Start disconnected: base present with an active offline alarm.
+    client = build_mock_client(alarms=[data.build_base_offline_alarm()])
+    await setup_integration(hass, mock_config_entry, client)
+    assert state_for(hass, "binary_sensor", BASE_OFFLINE).state == STATE_OFF
+
+    # Base (and its alarm) vanish; sensors remain, so the empty-snapshot prune
+    # guard does NOT trip. One refresh is well within STALE_DEVICE_THRESHOLD,
+    # so the entity still exists — and must read unavailable, not on.
+    coordinator = mock_config_entry.runtime_data
+    client.get_bases.return_value = []
+    client.get_alarms_actual.return_value = []
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+
+    assert state_for(hass, "binary_sensor", BASE_OFFLINE).state == STATE_UNAVAILABLE
+
+
+async def test_binary_sensors_unavailable_when_coordinator_fails(
+    hass: HomeAssistant, mock_config_entry: MockConfigEntry
+) -> None:
+    """A failed refresh takes both alarm binary_sensors unavailable."""
+    from aranet_cloud import AranetError
+
+    client = build_mock_client()
+    await setup_integration(hass, mock_config_entry, client)
+    assert state_for(hass, "binary_sensor", LOW_BATT_AIR).state == STATE_OFF
+    assert state_for(hass, "binary_sensor", BASE_OFFLINE).state == STATE_ON
+
+    coordinator = mock_config_entry.runtime_data
+    client.get_measurements_last.side_effect = AranetError("upstream 503")
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+
+    assert state_for(hass, "binary_sensor", LOW_BATT_AIR).state == STATE_UNAVAILABLE
+    assert state_for(hass, "binary_sensor", BASE_OFFLINE).state == STATE_UNAVAILABLE
 
 
 # ---------------------------------------------------------------------------

@@ -20,6 +20,8 @@ from .conftest import build_mock_client, setup_integration
 
 SOIL_VWC_UID = f"{DOMAIN}_{data.SOIL_SENSOR_SERIAL}_{data.M_SOIL_VWC}"
 SOIL_DEVICE = {(DOMAIN, data.SOIL_SENSOR_SERIAL)}
+AIR_DEVICE = {(DOMAIN, data.AIR_SENSOR_SERIAL)}
+BASE_DEVICE = {(DOMAIN, f"base_{data.BASE_ID}")}
 
 
 async def test_setup_and_unload(
@@ -212,6 +214,71 @@ async def test_empty_snapshot_never_prunes(
         dr.async_entries_for_config_entry(device_reg, init_integration.entry_id)
     )
     assert devices_after == devices_before
+
+
+async def test_partial_empty_sensors_never_prunes_sensor_devices(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+    mock_client: MagicMock,
+) -> None:
+    """An empty sensors plane (bases still present) must not wipe sensor devices.
+
+    The catalogs come from independent endpoints, so a partial-empty response —
+    ``get_sensors()`` returns ``[]`` on a hiccup while ``get_bases()`` keeps
+    reporting — must not be trusted to prune the whole sensor fleet. The empty
+    plane is left intact and the populated (base) plane is unaffected. The
+    pre-fix guard only skipped pruning when BOTH planes were empty, so this
+    regresses to a full sensor-fleet wipe without the per-plane fix.
+    """
+    device_reg = dr.async_get(hass)
+    assert device_reg.async_get_device(identifiers=SOIL_DEVICE) is not None
+    assert device_reg.async_get_device(identifiers=AIR_DEVICE) is not None
+    assert device_reg.async_get_device(identifiers=BASE_DEVICE) is not None
+
+    # Sensors plane comes back empty; bases keep reporting (default mock).
+    mock_client.get_sensors.return_value = []
+    mock_client.get_measurements_last.return_value = ([], Links())
+    mock_client.get_telemetry_last.return_value = ([], Links())
+
+    # Well past the absence threshold, no sensor device is pruned.
+    for _ in range(5):
+        await init_integration.runtime_data.async_refresh()
+        await hass.async_block_till_done()
+
+    assert device_reg.async_get_device(identifiers=SOIL_DEVICE) is not None
+    assert device_reg.async_get_device(identifiers=AIR_DEVICE) is not None
+    # The populated base plane is untouched.
+    assert device_reg.async_get_device(identifiers=BASE_DEVICE) is not None
+
+
+async def test_partial_empty_bases_never_prunes_base_devices(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+    mock_client: MagicMock,
+) -> None:
+    """An empty bases plane (sensors still present) must not wipe base devices.
+
+    Mirror of the sensors-empty case: a ``get_bases()`` → ``[]`` hiccup while
+    sensors keep reporting must leave the base device registered (its sensor
+    children reference it via ``via_device``), and the populated sensor plane
+    is unaffected.
+    """
+    device_reg = dr.async_get(hass)
+    assert device_reg.async_get_device(identifiers=BASE_DEVICE) is not None
+    assert device_reg.async_get_device(identifiers=SOIL_DEVICE) is not None
+
+    # Bases plane comes back empty; sensors keep reporting (default mock).
+    mock_client.get_bases.return_value = []
+
+    # Well past the absence threshold, the base device is not pruned.
+    for _ in range(5):
+        await init_integration.runtime_data.async_refresh()
+        await hass.async_block_till_done()
+
+    assert device_reg.async_get_device(identifiers=BASE_DEVICE) is not None
+    # The populated sensor plane is untouched.
+    assert device_reg.async_get_device(identifiers=SOIL_DEVICE) is not None
+    assert device_reg.async_get_device(identifiers=AIR_DEVICE) is not None
 
 
 async def test_single_poll_absence_does_not_prune(

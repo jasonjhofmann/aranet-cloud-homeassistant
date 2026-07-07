@@ -17,11 +17,12 @@ DOMAIN: Final = "aranet_cloud"
 DEFAULT_NAME: Final = "Aranet Cloud"
 MANUFACTURER: Final = "Aranet"
 
-CONF_API_KEY: Final = "api_key"
-
-# Polling cadence. Aranet sensors push once a minute, so 60 s is the sweet
-# spot — faster yields no new data, slower drops responsiveness. Not
-# user-configurable per HA Core conventions (the integration owns its cadence).
+# Polling cadence. Aranet sensors report on a per-sensor interval that is
+# user-configurable in the Aranet app (as fast as 1 min, up to 10 — see
+# READING_MAX_AGE in sensor.py); polling every 60 s keeps pace with even the
+# fastest setting, so faster yields no new data while slower drops
+# responsiveness. Not user-configurable per HA Core conventions (the
+# integration owns its cadence).
 DEFAULT_SCAN_INTERVAL_SECONDS: Final = 60
 DEFAULT_SCAN_INTERVAL: Final = timedelta(seconds=DEFAULT_SCAN_INTERVAL_SECONDS)
 

@@ -116,6 +116,21 @@ def _register_base_devices(
 
 
 @callback
+def _is_base_device(device: dr.DeviceEntry) -> bool:
+    """Return ``True`` if ``device`` is a base station (vs. a sensor device).
+
+    Base devices carry a ``(DOMAIN, "base_<id>")`` identifier; sensor devices
+    carry ``(DOMAIN, <serial>)`` (see :func:`~.sensor._base_device_info` and
+    :func:`~.sensor._sensor_device_info`). Classifying by that prefix lets the
+    stale-device prune guard treat each plane independently.
+    """
+    return any(
+        domain == DOMAIN and object_id.startswith("base_")
+        for domain, object_id in device.identifiers
+    )
+
+
+@callback
 def _async_remove_stale_devices(
     hass: HomeAssistant,
     entry: AranetConfigEntry,
@@ -126,15 +141,25 @@ def _async_remove_stale_devices(
 
     Guarded two ways so a transient cloud problem can never wipe the fleet:
 
-    * An *empty* snapshot (no sensors AND no bases) is treated as suspect —
-      the API returns a successful empty body on some hiccups — and never
-      prunes anything.
+    * An *empty plane* is treated as suspect and never prunes that plane's
+      devices. ``sensors`` and ``bases`` come from independent endpoints
+      (``get_sensors()`` vs. ``get_bases()``) and can fail independently — the
+      API returns a successful empty body on some hiccups — so an empty
+      ``sensors`` snapshot skips pruning sensor devices and an empty ``bases``
+      snapshot skips pruning base devices. Each plane is guarded on its *own*
+      emptiness (not only the both-empty case): a partial-empty response would
+      otherwise prune the entire counterpart plane. Pruning of a plane that
+      *did* report is still allowed, so this is deliberately not an ``or``
+      guard — an account can legitimately have bases but zero sensors, or the
+      reverse, and those absent devices should still age out.
     * A device must be absent for :data:`STALE_DEVICE_THRESHOLD` consecutive
       successful refreshes before it is removed. Reappearing resets its
       counter.
     """
     snapshot = coordinator.data
-    if not snapshot.sensors and not snapshot.bases:
+    prune_sensors = bool(snapshot.sensors)
+    prune_bases = bool(snapshot.bases)
+    if not prune_sensors and not prune_bases:
         _LOGGER.debug(
             "Snapshot is empty — skipping stale-device pruning (a cloud "
             "hiccup can present as a successful empty fleet)"
@@ -150,6 +175,16 @@ def _async_remove_stale_devices(
     for device in dr.async_entries_for_config_entry(device_reg, entry.entry_id):
         if not device.identifiers.isdisjoint(current):
             absence_counts.pop(device.id, None)
+            continue
+        # The device is absent from this snapshot. Only trust that absence when
+        # the device's OWN plane reported data — an empty plane is a suspected
+        # cloud hiccup, so leave that plane's devices (and their absence
+        # counters) untouched rather than pruning against a partial-empty
+        # response.
+        if _is_base_device(device):
+            if not prune_bases:
+                continue
+        elif not prune_sensors:
             continue
         misses = absence_counts.get(device.id, 0) + 1
         absence_counts[device.id] = misses

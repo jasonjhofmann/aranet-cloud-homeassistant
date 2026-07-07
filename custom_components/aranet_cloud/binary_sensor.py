@@ -136,9 +136,23 @@ class AranetLowBatteryBinarySensor(
         vouched for — same staleness pattern as the metric sensors. With no
         reading or no timestamp the alarm feed (refreshed every poll) gets
         the benefit of the doubt.
+
+        A live alarm always wins, though. An actively-firing low-battery
+        alarm is itself fresh evidence (the alarm feed is refetched every
+        poll), so it must never be masked as ``unavailable`` behind a stale
+        battery reading — that hides the very alert this entity exists to
+        raise. This is the dying-battery endgame: the sensor's last telemetry
+        can predate the alarm's propagation, so the reading is already stale
+        when the alarm appears. Surface it (``is_on`` → on) rather than
+        swallowing it.
         """
         if not super().available:
             return False
+        if (
+            self.coordinator.data.active_alarm_for_serial(self._serial, Metric.BATTERY)
+            is not None
+        ):
+            return True
         reading = self.coordinator.data.reading_for_serial(self._serial, Metric.BATTERY)
         if reading is None or reading.time is None:
             return True
@@ -148,7 +162,13 @@ class AranetLowBatteryBinarySensor(
 class AranetBaseOfflineBinarySensor(
     CoordinatorEntity["AranetCoordinator"], BinarySensorEntity
 ):
-    """On when the base station is reported offline by Aranet's built-in rule."""
+    """Base-station connectivity (CONNECTIVITY class, on = connected).
+
+    On (connected) while the base is checking in; off (disconnected) when
+    Aranet's built-in offline rule is firing OR the base has gone dark
+    (``Base.last_seen`` past :data:`READING_MAX_AGE`). The built-in rule
+    fires when the base is OFFLINE, so :meth:`is_on` inverts it.
+    """
 
     _attr_has_entity_name = True
     _attr_translation_key = "base_offline"
@@ -160,18 +180,42 @@ class AranetBaseOfflineBinarySensor(
         self._attr_unique_id = f"{DOMAIN}_base_{base.id}_offline"
         self._attr_device_info = _base_device_info(base)
 
-    # Availability is deliberately NOT gated on ``Base.last_seen`` staleness
-    # (unlike AranetBaseFirmwareSensor): a stale last_seen is precisely the
-    # condition this entity exists to report — the cloud-side offline alarm
-    # keeps asserting "Disconnected" while the base is dark, and going
-    # unavailable would mask it. The "no alarm" state itself carries no
-    # timestamp to judge, so coordinator success is the right availability
-    # signal here.
+    @property
+    def available(self) -> bool:
+        """Available only while the base is present in the current snapshot.
+
+        Deliberately NOT gated on ``Base.last_seen`` staleness (unlike
+        AranetBaseFirmwareSensor): a stale last_seen is precisely the
+        condition this entity exists to report — while the base is dark the
+        cloud keeps asserting "Disconnected", and going unavailable would
+        mask it (``is_on`` reports it instead).
+
+        It IS gated on base *presence*, though. If the base vanishes from the
+        snapshot — prune grace after account removal, or a transient
+        ``bases=[]`` cloud hiccup — its per-base offline alarm vanishes with
+        it, so ``is_on`` would otherwise fabricate on/"connected" for a base
+        we no longer have any data for: a false recovery/all-clear on a base
+        station that is actually gone. Report unavailable there instead.
+        """
+        if not super().available:
+            return False
+        return self._base_id in self.coordinator.data.bases
 
     @property
     def is_on(self) -> bool:
         # The base-station-offline rule's "sensor" field is the base ID.
-        alarm = self.coordinator.data.active_alarm(self._base_id, Metric.BASE_STATUS)
         # BinarySensorDeviceClass.CONNECTIVITY semantics: on = connected.
-        # The alarm fires when OFFLINE, so we invert.
-        return alarm is None
+        alarm = self.coordinator.data.active_alarm(self._base_id, Metric.BASE_STATUS)
+        if alarm is not None:
+            # Aranet's built-in offline rule is firing → disconnected.
+            return False
+        # No offline alarm: fall back to the base's own check-in time so a
+        # demonstrably-dark base (last_seen past READING_MAX_AGE) cannot
+        # assert "connected" merely because the cloud hasn't raised — or the
+        # account never configured — the offline rule. ``available`` has
+        # already guaranteed the base is present in the snapshot here; a
+        # missing timestamp gets the same benefit of the doubt as elsewhere.
+        base = self.coordinator.data.bases.get(self._base_id)
+        if base is None or base.last_seen is None:
+            return True
+        return (dt_util.utcnow() - base.last_seen) <= READING_MAX_AGE

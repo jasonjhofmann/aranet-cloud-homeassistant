@@ -4,6 +4,43 @@ All notable changes to **aranet-cloud-homeassistant** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.8.7 — 2026-07-07
+
+Correctness fixes from a full-repo ultra review (36 confirmed findings, health-
+signal focus). No entity/device contract changes; existing installs upgrade cleanly.
+Test suite grew 67 → 83; coverage 100%.
+
+### Fixed
+
+- **A partial-empty cloud response no longer wipes the device fleet.** The
+  stale-device prune only skipped when *both* the sensor and base planes came back
+  empty; a partial-empty response (one plane empty, e.g. a transient sensors=`[]`)
+  pruned the entire other plane after a few polls, destroying users' area/name
+  customizations. Each plane is now guarded independently.
+- **Radon in pCi/L keeps its decimal.** Radon delivered in the US display unit
+  (pCi/L) was collapsing to integer display precision, hiding the decimal that
+  straddles the EPA 4.0 pCi/L action level (3.6 and 4.4 both showed as "4"). Added a
+  pCi/L precision floor; `native_value` and statistics were already full-precision.
+- **A stale reading no longer masks an actively-firing alarm.** A stale battery
+  reading made the low-battery binary_sensor `unavailable` even while a live
+  low-battery alarm was present (worst on an HA restart with the sensor already
+  dark). A live alarm now wins.
+- **Base-offline sensor no longer reports a false "connected" all-clear** when the
+  base vanishes from the snapshot (prune grace / a transient `bases=[]` hiccup); it
+  reads `unavailable` instead. A dark base with no alarm now reconciles with the
+  firmware sensor via `last_seen`.
+- **Diagnostics no longer crash when the first refresh failed.** An entry stuck in
+  setup-retry (no `runtime_data` yet) now returns a redacted partial dump instead of
+  raising — exactly when a download is most useful. Also: the raw API key is scrubbed
+  from the exception summary, the `ApiKey` header casing is redacted, and a stale
+  `last_exception` is no longer emitted after recovery.
+
+### Changed
+
+- Removed a dead duplicate `CONF_API_KEY` constant; corrected README/info.md claims
+  (per-sensor vs base-station unique_id stability, the ~20-minute staleness gate, the
+  configurable sensor cadence, the enforced ≥95% coverage floor).
+
 ## 0.8.6 — 2026-06-25
 
 Polish and robustness from a full-repo review. No change for the common case;

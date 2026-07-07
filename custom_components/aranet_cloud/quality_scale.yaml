@@ -31,7 +31,7 @@ rules:
   test-before-setup: done
   unique-config-entry: done
 
-  # Silver (targeting Bronze for now; below are Silver-tier items)
+  # Silver
   action-exceptions:
     status: exempt
     comment: No custom actions.
