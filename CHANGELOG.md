@@ -4,11 +4,23 @@ All notable changes to **aranet-cloud-homeassistant** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 1.0.0 — 2026-08-24
+
+First stable release. No code changes since 0.8.7 — the integration has been
+functionally complete at Platinum quality scale for some time, and acceptance
+into the HACS default repository was the last gate on the 1.0 tag.
+
+Note for anyone tracking GitHub releases: 0.8.5, 0.8.6 and 0.8.7 were tagged
+but never published as releases, so HACS has been serving 0.8.4. This release
+carries all of that work forward — see the entries below for what changed.
+
+### Changed
 
 - **Now in the HACS default repository.** README install instructions no
   longer tell users to add a custom repository; added a My Home Assistant
   "open in HACS" button and switched the badge to HACS Default.
+- Version bumped to 1.0.0 in `manifest.json`; the README status blurb no
+  longer describes the project as pre-1.0.
 
 ## 0.8.7 — 2026-07-07
 

@@ -8,8 +8,8 @@ Assistant via the official REST API. Works alongside (or instead of) the
 built-in Bluetooth Aranet integration — and is the only path for sensors
 that aren't in BLE range of your HA host.
 
-> **Status:** 0.8.x, Platinum quality scale. Functionally complete and
-> accepted into the **HACS default repository**; the v1.0 tag is still to come.
+> **Status:** Stable (1.0.0, Platinum quality scale). In the **HACS default
+> repository**.
 
 ## What you get
 
