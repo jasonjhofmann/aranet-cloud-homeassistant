@@ -1,6 +1,6 @@
 # Aranet Cloud — Home Assistant integration
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+[![HACS Default](https://img.shields.io/badge/HACS-Default-41BDF5.svg)](https://hacs.xyz/)
 [![release](https://img.shields.io/github/v/release/jasonjhofmann/aranet-cloud-homeassistant?label=release&color=blue)](https://github.com/jasonjhofmann/aranet-cloud-homeassistant/releases)
 
 Read all your [Aranet Cloud](https://aranet.cloud/) sensors into Home
@@ -8,9 +8,8 @@ Assistant via the official REST API. Works alongside (or instead of) the
 built-in Bluetooth Aranet integration — and is the only path for sensors
 that aren't in BLE range of your HA host.
 
-> **Status:** Pre-release (0.8.x, Platinum quality scale). Functionally complete. v1.0 ships when
-> submitted to the HACS default registry; until then, install as a custom
-> repository.
+> **Status:** 0.8.x, Platinum quality scale. Functionally complete and
+> accepted into the **HACS default repository**; the v1.0 tag is still to come.
 
 ## What you get
 
@@ -102,15 +101,17 @@ with no unit label.
 
 ## Installation
 
-### Via HACS (custom repository)
+### Via HACS (recommended)
 
-1. HACS → Integrations → ⋮ menu → **Custom repositories**
-2. URL: `https://github.com/jasonjhofmann/aranet-cloud-homeassistant`
-3. Category: **Integration**
-4. Find "Aranet Cloud" in the list → Download
-5. Restart Home Assistant
-6. Settings → Devices & Services → **+ Add Integration** → Aranet Cloud
-7. Paste your Aranet Cloud API key
+Aranet Cloud is in the **HACS default repository** — no custom repository
+needed.
+
+1. In HACS, search for **Aranet Cloud** → Download
+2. Restart Home Assistant
+3. Settings → Devices & Services → **+ Add Integration** → Aranet Cloud
+4. Paste your Aranet Cloud API key
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=jasonjhofmann&repository=aranet-cloud-homeassistant&category=integration)
 
 ### Manually
 

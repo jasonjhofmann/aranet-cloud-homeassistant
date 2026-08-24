@@ -4,6 +4,12 @@ All notable changes to **aranet-cloud-homeassistant** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+- **Now in the HACS default repository.** README install instructions no
+  longer tell users to add a custom repository; added a My Home Assistant
+  "open in HACS" button and switched the badge to HACS Default.
+
 ## 0.8.7 — 2026-07-07
 
 Correctness fixes from a full-repo ultra review (36 confirmed findings, health-
