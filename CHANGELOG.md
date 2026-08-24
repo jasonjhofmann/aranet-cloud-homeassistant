@@ -4,7 +4,7 @@ All notable changes to **aranet-cloud-homeassistant** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 1.0.1 — 2026-08-24
 
 - **README rewrite.** Added the Aranet logo (light and dark), restructured the
   page around tasks following Google's developer documentation style guide, and
