@@ -4,6 +4,16 @@ All notable changes to **aranet-cloud-homeassistant** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+- **README rewrite.** Added the Aranet logo (light and dark), restructured the
+  page around tasks following Google's developer documentation style guide, and
+  documented the 3-consecutive-poll device prune. Folded the duplicated
+  "Supported metrics" and "Entity reference" sections into one table, merged the
+  two copies of the debug-logging instructions, replaced the absolute
+  self-referencing GitHub links with in-page anchors, and dropped the "Status"
+  blurb now that 1.0.0 has shipped. Added CI and license badges.
+
 ## 1.0.0 — 2026-08-24
 
 First stable release. No code changes since 0.8.7 — the integration has been
