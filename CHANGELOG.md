@@ -4,6 +4,13 @@ All notable changes to **aranet-cloud-homeassistant** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.2 — 2026-08-27
+
+- **Repository CI/workflow hardening only — no integration code changes.**
+  Gate the @claude workflows on the triggering actor having write access,
+  cite the entrypoint the pinned action actually runs (`run.ts`), and stop
+  running the automated review on Dependabot PRs.
+
 ## 1.0.1 — 2026-08-24
 
 - **README rewrite.** Added the Aranet logo (light and dark), restructured the
