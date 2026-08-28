@@ -24,6 +24,22 @@ AIR_DEVICE = (DOMAIN, data.AIR_SENSOR_SERIAL)
 BASE_DEVICE = (DOMAIN, f"base_{data.BASE_ID}")
 
 
+def _get_device(
+    device_reg: dr.DeviceRegistry,
+    identifier: tuple[str, str],
+    entry: MockConfigEntry,
+) -> dr.DeviceEntry | None:
+    """Per-entry device lookup that works on every harness this matrix resolves.
+
+    HA 2026.8 added ``async_get_device_by_identifier`` and HA dev hard-errors
+    the old ``async_get_device`` in test frames; the Python 3.13 leg resolves
+    an older harness that predates the new API, so probe for it.
+    """
+    if hasattr(device_reg, "async_get_device_by_identifier"):
+        return device_reg.async_get_device_by_identifier(identifier, entry.entry_id)
+    return device_reg.async_get_device(identifiers={identifier})
+
+
 async def test_setup_and_unload(
     hass: HomeAssistant, init_integration: MockConfigEntry
 ) -> None:
@@ -42,8 +58,8 @@ async def test_base_device_pre_registered(
 ) -> None:
     """The base station is registered as a device so via_device links resolve."""
     device_reg = dr.async_get(hass)
-    base_device = device_reg.async_get_device_by_identifier(
-        (DOMAIN, f"base_{data.BASE_ID}"), init_integration.entry_id
+    base_device = _get_device(
+        device_reg, (DOMAIN, f"base_{data.BASE_ID}"), init_integration
     )
     assert base_device is not None
     assert base_device.manufacturer == "Aranet"
@@ -60,11 +76,11 @@ async def test_sensor_device_nests_under_base_via_device(
     regression that flattens the device hierarchy can't pass silently.
     """
     device_reg = dr.async_get(hass)
-    base_device = device_reg.async_get_device_by_identifier(
-        (DOMAIN, f"base_{data.BASE_ID}"), init_integration.entry_id
+    base_device = _get_device(
+        device_reg, (DOMAIN, f"base_{data.BASE_ID}"), init_integration
     )
-    sensor_device = device_reg.async_get_device_by_identifier(
-        (DOMAIN, data.AIR_SENSOR_SERIAL), init_integration.entry_id
+    sensor_device = _get_device(
+        device_reg, (DOMAIN, data.AIR_SENSOR_SERIAL), init_integration
     )
     assert base_device is not None
     assert sensor_device is not None
@@ -144,12 +160,7 @@ async def test_stale_devices_pruned_after_three_consecutive_absences(
 ) -> None:
     """A sensor must be absent from 3 consecutive refreshes before removal."""
     device_reg = dr.async_get(hass)
-    assert (
-        device_reg.async_get_device_by_identifier(
-            SOIL_DEVICE, init_integration.entry_id
-        )
-        is not None
-    )
+    assert _get_device(device_reg, SOIL_DEVICE, init_integration) is not None
 
     # Cloud drops the soil sensor.
     mock_client.get_sensors.return_value = [data.build_air_sensor()]
@@ -158,23 +169,13 @@ async def test_stale_devices_pruned_after_three_consecutive_absences(
         for _ in range(2):
             await init_integration.runtime_data.async_refresh()
             await hass.async_block_till_done()
-            assert (
-                device_reg.async_get_device_by_identifier(
-                    SOIL_DEVICE, init_integration.entry_id
-                )
-                is not None
-            )
+            assert _get_device(device_reg, SOIL_DEVICE, init_integration) is not None
 
         # Refresh 3: threshold reached, device pruned (and logged).
         await init_integration.runtime_data.async_refresh()
         await hass.async_block_till_done()
 
-    assert (
-        device_reg.async_get_device_by_identifier(
-            SOIL_DEVICE, init_integration.entry_id
-        )
-        is None
-    )
+    assert _get_device(device_reg, SOIL_DEVICE, init_integration) is None
     assert "has not been reported by the Aranet Cloud account" in caplog.text
 
 
@@ -199,12 +200,7 @@ async def test_stale_prune_removes_entities_too(
         await init_integration.runtime_data.async_refresh()
         await hass.async_block_till_done()
 
-    assert (
-        device_reg.async_get_device_by_identifier(
-            SOIL_DEVICE, init_integration.entry_id
-        )
-        is None
-    )
+    assert _get_device(device_reg, SOIL_DEVICE, init_integration) is None
     assert ent_reg.async_get_entity_id("sensor", DOMAIN, SOIL_VWC_UID) is None
 
 
@@ -251,22 +247,9 @@ async def test_partial_empty_sensors_never_prunes_sensor_devices(
     regresses to a full sensor-fleet wipe without the per-plane fix.
     """
     device_reg = dr.async_get(hass)
-    assert (
-        device_reg.async_get_device_by_identifier(
-            SOIL_DEVICE, init_integration.entry_id
-        )
-        is not None
-    )
-    assert (
-        device_reg.async_get_device_by_identifier(AIR_DEVICE, init_integration.entry_id)
-        is not None
-    )
-    assert (
-        device_reg.async_get_device_by_identifier(
-            BASE_DEVICE, init_integration.entry_id
-        )
-        is not None
-    )
+    assert _get_device(device_reg, SOIL_DEVICE, init_integration) is not None
+    assert _get_device(device_reg, AIR_DEVICE, init_integration) is not None
+    assert _get_device(device_reg, BASE_DEVICE, init_integration) is not None
 
     # Sensors plane comes back empty; bases keep reporting (default mock).
     mock_client.get_sensors.return_value = []
@@ -278,23 +261,10 @@ async def test_partial_empty_sensors_never_prunes_sensor_devices(
         await init_integration.runtime_data.async_refresh()
         await hass.async_block_till_done()
 
-    assert (
-        device_reg.async_get_device_by_identifier(
-            SOIL_DEVICE, init_integration.entry_id
-        )
-        is not None
-    )
-    assert (
-        device_reg.async_get_device_by_identifier(AIR_DEVICE, init_integration.entry_id)
-        is not None
-    )
+    assert _get_device(device_reg, SOIL_DEVICE, init_integration) is not None
+    assert _get_device(device_reg, AIR_DEVICE, init_integration) is not None
     # The populated base plane is untouched.
-    assert (
-        device_reg.async_get_device_by_identifier(
-            BASE_DEVICE, init_integration.entry_id
-        )
-        is not None
-    )
+    assert _get_device(device_reg, BASE_DEVICE, init_integration) is not None
 
 
 async def test_partial_empty_bases_never_prunes_base_devices(
@@ -310,18 +280,8 @@ async def test_partial_empty_bases_never_prunes_base_devices(
     is unaffected.
     """
     device_reg = dr.async_get(hass)
-    assert (
-        device_reg.async_get_device_by_identifier(
-            BASE_DEVICE, init_integration.entry_id
-        )
-        is not None
-    )
-    assert (
-        device_reg.async_get_device_by_identifier(
-            SOIL_DEVICE, init_integration.entry_id
-        )
-        is not None
-    )
+    assert _get_device(device_reg, BASE_DEVICE, init_integration) is not None
+    assert _get_device(device_reg, SOIL_DEVICE, init_integration) is not None
 
     # Bases plane comes back empty; sensors keep reporting (default mock).
     mock_client.get_bases.return_value = []
@@ -331,23 +291,10 @@ async def test_partial_empty_bases_never_prunes_base_devices(
         await init_integration.runtime_data.async_refresh()
         await hass.async_block_till_done()
 
-    assert (
-        device_reg.async_get_device_by_identifier(
-            BASE_DEVICE, init_integration.entry_id
-        )
-        is not None
-    )
+    assert _get_device(device_reg, BASE_DEVICE, init_integration) is not None
     # The populated sensor plane is untouched.
-    assert (
-        device_reg.async_get_device_by_identifier(
-            SOIL_DEVICE, init_integration.entry_id
-        )
-        is not None
-    )
-    assert (
-        device_reg.async_get_device_by_identifier(AIR_DEVICE, init_integration.entry_id)
-        is not None
-    )
+    assert _get_device(device_reg, SOIL_DEVICE, init_integration) is not None
+    assert _get_device(device_reg, AIR_DEVICE, init_integration) is not None
 
 
 async def test_single_poll_absence_does_not_prune(
@@ -362,12 +309,7 @@ async def test_single_poll_absence_does_not_prune(
     await init_integration.runtime_data.async_refresh()
     await hass.async_block_till_done()
 
-    assert (
-        device_reg.async_get_device_by_identifier(
-            SOIL_DEVICE, init_integration.entry_id
-        )
-        is not None
-    )
+    assert _get_device(device_reg, SOIL_DEVICE, init_integration) is not None
 
 
 async def test_reappearing_device_resets_absence_counter(
@@ -392,9 +334,4 @@ async def test_reappearing_device_resets_absence_counter(
     await refresh()
     await refresh()
 
-    assert (
-        device_reg.async_get_device_by_identifier(
-            SOIL_DEVICE, init_integration.entry_id
-        )
-        is not None
-    )
+    assert _get_device(device_reg, SOIL_DEVICE, init_integration) is not None
