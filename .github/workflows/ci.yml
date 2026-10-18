@@ -30,11 +30,19 @@ jobs:
       # name as its dependency library — so the dependency must be installed
       # for mypy to resolve the bare ``from aranet_cloud import …`` correctly
       # (see the mypy_path / explicit_package_bases note in pyproject.toml).
+      # Type-checked against the declared support floor (hacs.json 2025.1.0), not the
+      # newest release: HA 2026.9 moved core to probatio and 2026.10 retyped schema
+      # arguments as probatio.Schema, so mypy against the latest HA rejects the
+      # voluptuous schemas the floor needs (probatio does not exist before 2026.9).
+      # HA still accepts voluptuous schemas at runtime; the test job, which resolves
+      # the latest harness, covers runtime on the newest HA.
+      # HA 2025.1.0 runs on Python 3.12-3.13 and pins a pre-release aiohasupervisor,
+      # hence --python 3.13 and --prerelease=allow.
       - name: Mypy (strict)
         run: |
-          uv run --python 3.14 \
+          uv run --python 3.13 --prerelease=allow \
             --with mypy \
-            --with homeassistant \
+            --with homeassistant==2025.1.0 \
             --with aiohttp \
             --with voluptuous \
             --with "aranet-cloud==0.2.2" \

@@ -4,6 +4,17 @@ All notable changes to **aranet-cloud-homeassistant** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+- **CI: mypy now type-checks against the declared floor
+  (`homeassistant==2025.1.0`).** HA 2026.9 moved core from voluptuous to
+  probatio, and HA 2026.10 retyped schema arguments to match, so mypy against
+  the newest HA flagged the voluptuous schemas older releases need. The next
+  push would have failed CI. Typing only: HA still accepts voluptuous schemas
+  at runtime, and the test job still runs on the newest HA. No integration
+  code changes. HA 2025.1.0 needs Python 3.13 and `--prerelease=allow` (it
+  pins a pre-release aiohasupervisor).
+
 ## 1.0.2 — 2026-08-27
 
 - **Repository CI/workflow hardening only — no integration code changes.**
