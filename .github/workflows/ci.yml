@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    # Nightly, so drift in the latest Home Assistant shows up the day it lands
+    # instead of at the next push.
+    - cron: "30 3 * * *"
+  workflow_dispatch:
 
 permissions: {}
 
@@ -25,28 +30,6 @@ jobs:
         run: |
           uv run --python 3.14 --with ruff \
             ruff format --check custom_components/ tests/
-
-      # The integration package is named ``aranet_cloud`` — the same top-level
-      # name as its dependency library — so the dependency must be installed
-      # for mypy to resolve the bare ``from aranet_cloud import …`` correctly
-      # (see the mypy_path / explicit_package_bases note in pyproject.toml).
-      # Type-checked against the declared support floor (hacs.json 2025.1.0), not the
-      # newest release: HA 2026.9 moved core to probatio and 2026.10 retyped schema
-      # arguments as probatio.Schema, so mypy against the latest HA rejects the
-      # voluptuous schemas the floor needs (probatio does not exist before 2026.9).
-      # HA still accepts voluptuous schemas at runtime; the test job, which resolves
-      # the latest harness, covers runtime on the newest HA.
-      # HA 2025.1.0 runs on Python 3.12-3.13 and pins a pre-release aiohasupervisor,
-      # hence --python 3.13 and --prerelease=allow.
-      - name: Mypy (strict)
-        run: |
-          uv run --python 3.13 --prerelease=allow \
-            --with mypy \
-            --with homeassistant==2025.1.0 \
-            --with aiohttp \
-            --with voluptuous \
-            --with "aranet-cloud==0.2.2" \
-            mypy custom_components/aranet_cloud/
 
   # Guards the declared support floor (hacs.json: HA 2025.1 = Python 3.12).
   # A 3.14-only construct slipping in (e.g. unparenthesized ``except A, B:``)
@@ -85,3 +68,66 @@ jobs:
               --cov=custom_components.aranet_cloud \
               --cov-report=term-missing \
               --cov-fail-under=95
+
+  # Proves the floor declared in hacs.json is real. The other gates resolve
+  # the LATEST Home Assistant, so code could start depending on a newer API
+  # while HACS keeps offering the release to users on the declared floor.
+  # Reads the floor from hacs.json and the integration's own requirements
+  # from manifest.json, then imports every module and type-checks against
+  # that exact release.
+  #
+  # This is also the only mypy run. HA 2026.9 moved core to probatio and
+  # 2026.10 retyped schema arguments as probatio.Schema, so mypy against the
+  # latest HA rejects the voluptuous schemas older releases need (probatio
+  # does not exist before 2026.9). HA still accepts voluptuous schemas at
+  # runtime, and the test job covers runtime on the newest HA.
+  minimum-supported-ha:
+    name: Minimum supported HA (hacs.json floor)
+    runs-on: ubuntu-latest
+    env:
+      # Must satisfy the floor's requires-python (HA 2025.1.0 = Python
+      # 3.12 or 3.13).
+      FLOOR_PYTHON: "3.13"
+      # HA 2025.x pins a pre-release aiohasupervisor, which uv otherwise refuses.
+      UV_PRERELEASE: allow
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Pin the floor and the integration's requirements
+        run: |
+          python3 - <<'PY'
+          import json
+          floor = json.load(open("hacs.json"))["homeassistant"]
+          reqs = json.load(open("custom_components/aranet_cloud/manifest.json"))["requirements"]
+          with open("floor-requirements.txt", "w") as f:
+              f.write("\n".join([f"homeassistant=={floor}", "voluptuous", *reqs]) + "\n")
+          print(f"Declared Home Assistant floor: {floor}; requirements: {reqs}")
+          PY
+
+      - name: Import every module against the floor
+        run: |
+          uv run --no-project --python "$FLOOR_PYTHON" \
+            --with-requirements floor-requirements.txt \
+            python -c "
+          import importlib, pkgutil
+          import custom_components.aranet_cloud as pkg
+          names = [m.name for m in pkgutil.iter_modules(pkg.__path__)]
+          for name in names:
+              importlib.import_module(f'{pkg.__name__}.{name}')
+          print(f'{len(names)} modules import on the declared floor')
+          "
+
+      # The integration package is named ``aranet_cloud``, the same top-level
+      # name as its dependency library, so the library (installed here from
+      # manifest.json) must be present for mypy to resolve the bare
+      # ``from aranet_cloud import …`` (see mypy_path / explicit_package_bases
+      # in pyproject.toml).
+      - name: Mypy (strict) against the floor
+        run: |
+          uv run --no-project --python "$FLOOR_PYTHON" \
+            --with-requirements floor-requirements.txt \
+            --with mypy \
+            mypy custom_components/aranet_cloud/

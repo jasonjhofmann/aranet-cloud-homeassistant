@@ -6,14 +6,19 @@ versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
-- **CI: mypy now type-checks against the declared floor
-  (`homeassistant==2025.1.0`).** HA 2026.9 moved core from voluptuous to
-  probatio, and HA 2026.10 retyped schema arguments to match, so mypy against
-  the newest HA flagged the voluptuous schemas older releases need. The next
-  push would have failed CI. Typing only: HA still accepts voluptuous schemas
-  at runtime, and the test job still runs on the newest HA. No integration
-  code changes. HA 2025.1.0 needs Python 3.13 and `--prerelease=allow` (it
-  pins a pre-release aiohasupervisor).
+- **CI: new Minimum supported HA job, now the only mypy run.** It reads the
+  floor from `hacs.json` and the integration's requirements from
+  `manifest.json`, then imports every module and runs mypy against that exact
+  Home Assistant release, so the declared floor can't silently go stale. mypy
+  no longer runs against the latest HA: HA 2026.9 moved core from voluptuous
+  to probatio, and HA 2026.10 retyped schema arguments to match, so mypy there
+  flags the voluptuous schemas older releases need. The next push would have
+  failed CI. HA 2025.1.0 needs Python 3.13 and pre-releases allowed (it pins a
+  pre-release aiohasupervisor). Typing only: HA still accepts voluptuous
+  schemas at runtime, and the test job still runs on the newest HA. No
+  integration code changes.
+- **CI: the workflow also runs nightly**, so a change in the latest Home
+  Assistant shows up the day it lands instead of at the next push.
 - **Tests: the `atm` pressure assertion follows HA's own unit table.** HA
   2026.10 added `atm` to the units it accepts for atmospheric pressure, so
   `_effective_device_class` now keeps that class for `atm` readings on 2026.10
