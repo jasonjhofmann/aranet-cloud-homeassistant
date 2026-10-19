@@ -4,7 +4,7 @@ All notable changes to **aranet-cloud-homeassistant** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 1.0.3 — 2026-10-18
 
 - **CI: new Minimum supported HA job, now the only mypy run.** It reads the
   floor from `hacs.json` and the integration's requirements from
@@ -25,6 +25,10 @@ versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and still drops it on older releases. The code already read HA's table; only
   the test hard-coded the old answer. On HA 2026.10, an account set to display
   pressure in atm now gets the pressure device class and long-term statistics.
+- **Tests: device lookups migrated to `async_get_device_by_identifier`**
+  (2026-08-27). HA dev hard-errors the deprecated `async_get_device` in test
+  frames. A `_get_device` helper falls back to the old call on the older
+  harness the Python 3.13 leg resolves. No integration code changes.
 
 ## 1.0.2 — 2026-08-27
 
