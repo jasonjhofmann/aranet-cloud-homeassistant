@@ -341,6 +341,7 @@ def test_every_unit_yields_valid_device_class_combo() -> None:
 def test_effective_device_class_known_combos() -> None:
     """Spot-check the audit's specific invalid combos and the V→VOLTAGE promotion."""
     from homeassistant.components.sensor import SensorDeviceClass
+    from homeassistant.components.sensor.const import DEVICE_CLASS_UNITS
 
     from custom_components.aranet_cloud.sensor import _effective_device_class
 
@@ -355,8 +356,12 @@ def test_effective_device_class_known_combos() -> None:
     )
     # invalid combos degrade to no class
     assert _effective_device_class(SensorDeviceClass.HUMIDITY, "%RH") is None
-    assert (
-        _effective_device_class(SensorDeviceClass.ATMOSPHERIC_PRESSURE, "atm") is None
+    # HA 2026.10 added "atm" to ATMOSPHERIC_PRESSURE's units: the class survives
+    # there and degrades on older releases (the 3.13 leg runs an older harness).
+    # Read HA's own table rather than hard-coding either answer.
+    atm_ok = "atm" in DEVICE_CLASS_UNITS[SensorDeviceClass.ATMOSPHERIC_PRESSURE]
+    assert _effective_device_class(SensorDeviceClass.ATMOSPHERIC_PRESSURE, "atm") is (
+        SensorDeviceClass.ATMOSPHERIC_PRESSURE if atm_ok else None
     )
     assert _effective_device_class(SensorDeviceClass.SIGNAL_STRENGTH, "dBW") is None
     assert _effective_device_class(SensorDeviceClass.MOISTURE, "/") is None

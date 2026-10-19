@@ -14,6 +14,12 @@ versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   at runtime, and the test job still runs on the newest HA. No integration
   code changes. HA 2025.1.0 needs Python 3.13 and `--prerelease=allow` (it
   pins a pre-release aiohasupervisor).
+- **Tests: the `atm` pressure assertion follows HA's own unit table.** HA
+  2026.10 added `atm` to the units it accepts for atmospheric pressure, so
+  `_effective_device_class` now keeps that class for `atm` readings on 2026.10
+  and still drops it on older releases. The code already read HA's table; only
+  the test hard-coded the old answer. On HA 2026.10, an account set to display
+  pressure in atm now gets the pressure device class and long-term statistics.
 
 ## 1.0.2 — 2026-08-27
 
