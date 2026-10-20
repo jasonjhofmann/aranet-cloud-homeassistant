@@ -4,6 +4,14 @@ All notable changes to **aranet-cloud-homeassistant** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.5 — 2026-10-20
+
+- **Requires aranet-cloud 0.2.4** (was 0.2.2, one release behind). The
+  library has no runtime changes since 0.2.2; 0.2.4 fixes its reported
+  `__version__`. CI's test job now reads the library version from
+  `manifest.json` instead of restating it, so the tests always run what
+  Home Assistant installs.
+
 ## 1.0.4 — 2026-10-20
 
 - **README brought up to date.** The unrendered-metric notice is logged at

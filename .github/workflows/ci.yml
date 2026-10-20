@@ -59,11 +59,14 @@ jobs:
         uses: astral-sh/setup-uv@v7
 
       - name: Pytest (with coverage gate)
+        # The library version comes from manifest.json, so the tests always
+        # run the version Home Assistant will install.
         run: |
+          python3 -c "import json; print('\n'.join(json.load(open('custom_components/aranet_cloud/manifest.json'))['requirements']))" > manifest-requirements.txt
           uv run --python ${{ matrix.python-version }} \
             --with pytest-homeassistant-custom-component \
             --with pytest-cov \
-            --with "aranet-cloud==0.2.2" \
+            --with-requirements manifest-requirements.txt \
             python -m pytest tests/ -v \
               --cov=custom_components.aranet_cloud \
               --cov-report=term-missing \
