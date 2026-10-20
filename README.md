@@ -142,9 +142,16 @@ an issue is welcome. See [Report an issue](#report-an-issue).
 | `binary_sensor` | Low battery | `battery` | `on` means low |
 | `binary_sensor` | Base station | `connectivity` | `on` means connected |
 
+The units shown are the defaults. If your account displays a metric in another
+unit, the integration passes that unit through. When Home Assistant doesn't
+accept it for the metric's device class, the entity uses a unit-based class
+instead (for example `voltage` for a battery reported in V) or drops the class
+and stays a plain measurement.
+
 Coverage is complete against the current Aranet Cloud catalog. If Aranet adds a
-metric later, the integration skips it and logs a line at debug level until
-it's added here, which is a one-row change to `METRIC_REGISTRY`. See
+metric later, the integration skips it and logs one line at `INFO` (once per
+sensor and metric), so you see it without turning on debug, until it's added
+here, which is a one-row change to `METRIC_REGISTRY`. See
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
 An unrecognized unit shows the value with no unit label rather than guessing.
@@ -178,8 +185,11 @@ response can't delete your fleet.
 
 ### Stale readings go unavailable
 
-An individual entity goes `unavailable` once its most recent reading, or a base
-station's last check-in, is more than 20 minutes old. Twenty minutes is twice
+A sensor entity goes `unavailable` once its most recent reading is more than 20
+minutes old, and a base station's firmware entity does the same once the base's
+last check-in is that old. The base station's connectivity binary sensor turns
+`off` (disconnected) instead of going unavailable, and a low-battery binary
+sensor stays available while its alarm is firing. Twenty minutes is twice
 the coarsest reporting interval the hardware offers, which leaves room for a
 missed cycle.
 
@@ -318,13 +328,13 @@ At `debug`, **Settings > System > Logs** shows:
   cycle, so you can confirm data is flowing and how much.
 - **Entity changes.** `Adding N sensor entit…: <unique_id>, …` whenever a new
   sensor or metric appears.
-- **Unrendered metrics.** `Sensor X reports metric id N … skipping`, once per
-  sensor and metric, if Aranet reports something the integration doesn't render
-  yet. That's worth an issue, since adding it is a one-row change.
 - **Retries and timeouts** from the client library.
 
-Device cleanup logs a single line at `INFO`, so you'll see it without turning
-on debug.
+Two things log at `INFO`, so you'll see them without turning on debug: device
+cleanup, and unrendered metrics (`Sensor X reports metric id N … skipping`,
+once per sensor and metric, when Aranet reports something the integration
+doesn't render yet). An unrendered metric is worth an issue, since adding it is
+a one-row change.
 
 The API key never appears in the log at any level. Coordinator failures are
 logged once when they start and once when they recover, which is standard Home

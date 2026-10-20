@@ -4,6 +4,17 @@ All notable changes to **aranet-cloud-homeassistant** are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning is [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.4 — 2026-10-20
+
+- **README brought up to date.** The unrendered-metric notice is logged at
+  `INFO`, not debug (that changed in 0.8.6, and the 1.0.1 rewrite kept the old
+  wording), so it moves out of the debug list. The stale-readings section now
+  says which entities go unavailable: the base station's connectivity sensor
+  turns `off` instead (0.8.2), and a low-battery sensor stays available while
+  its alarm fires (0.8.7). The entity reference notes that units other than
+  the defaults pass through. HACS shows the README from the latest release,
+  which is why this ships as one. No integration code changes.
+
 ## 1.0.3 — 2026-10-18
 
 - **CI: new Minimum supported HA job, now the only mypy run.** It reads the
